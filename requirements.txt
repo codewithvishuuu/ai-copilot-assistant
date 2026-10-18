@@ -1,0 +1,9 @@
+# Community Copilot — runtime dependencies (pinned; verified installable on Python 3.11)
+# See requirements-dev.txt for test/lint tooling.
+
+discord.py==2.7.1
+ollama==0.6.3
+pydantic==2.14.1
+pydantic-settings==2.16.0
+Pillow==13.0.0
+httpx==0.28.1
