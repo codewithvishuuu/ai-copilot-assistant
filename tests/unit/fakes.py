@@ -184,6 +184,24 @@ class FakeThread:
         return _FakeHistory(self._messages, limit, self._history_error, self._history_delay)
 
 
+_MISSING = object()  # mirrors discord.py's MISSING sentinel: omitted vs explicitly passed
+
+
+def _record_send(content, embed, embeds, ephemeral) -> dict:
+    # Mirror discord.py's keyword rule (discord/http.py::handle_message_parameters):
+    # passing BOTH `embed` and `embeds` raises TypeError — and an explicit None still
+    # counts as "passed". Live bug CC-8480 slipped through because this fake used to
+    # accept both silently.
+    if embed is not _MISSING and embeds is not _MISSING:
+        raise TypeError("Cannot mix embed and embeds keyword arguments.")
+    return {
+        "content": content,
+        "embed": None if embed is _MISSING else embed,
+        "embeds": None if embeds is _MISSING else embeds,
+        "ephemeral": ephemeral,
+    }
+
+
 class FakeResponse:
     def __init__(self) -> None:
         self.sent: list[dict] = []
@@ -193,10 +211,10 @@ class FakeResponse:
     def is_done(self) -> bool:
         return self._done
 
-    async def send_message(self, content=None, *, embed=None, embeds=None, ephemeral=False, allowed_mentions=None):
-        self.sent.append(
-            {"content": content, "embed": embed, "embeds": embeds, "ephemeral": ephemeral}
-        )
+    async def send_message(
+        self, content=None, *, embed=_MISSING, embeds=_MISSING, ephemeral=False, allowed_mentions=None
+    ):
+        self.sent.append(_record_send(content, embed, embeds, ephemeral))
         self._done = True
 
     async def defer(self, *, ephemeral=False):
@@ -212,10 +230,8 @@ class FakeFollowup:
     def __init__(self) -> None:
         self.sent: list[dict] = []
 
-    async def send(self, content=None, *, embed=None, embeds=None, ephemeral=False, allowed_mentions=None):
-        self.sent.append(
-            {"content": content, "embed": embed, "embeds": embeds, "ephemeral": ephemeral}
-        )
+    async def send(self, content=None, *, embed=_MISSING, embeds=_MISSING, ephemeral=False, allowed_mentions=None):
+        self.sent.append(_record_send(content, embed, embeds, ephemeral))
 
 
 def make_user(user_id: int = 7, *, manage_threads: bool = False, roles: tuple = ()):

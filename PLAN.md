@@ -7,7 +7,7 @@
 
 | Fact | Value |
 |---|---|
-| Project dir | `C:\Users\VISHAL KUMAR\community-copilot` (was empty at start; git initialized 2026-10-18, branch `main`, **no remote, nothing pushed**) |
+| Project dir | `C:\Users\<you>\community-copilot` (was empty at start; git initialized 2026-10-18, branch `main`, **no remote, nothing pushed**) |
 | Python | 3.11.9; venv at `.venv` (pip 26.2.1) |
 | SQLite | 3.45.1 via stdlib; **FTS5 verified** (`CREATE VIRTUAL TABLE ... USING fts5` succeeds) |
 | Ollama | client+server **0.40.2**; model **`gemma4:e2b` already on disk** (4.27 GB total: 3.26 GB weights + 0.92 GB vision projector + 0.09 GB MTP draft; `ollama list` size 4.6 GB) — **no download needed**; `Q4_K_M`, 4.6B params |

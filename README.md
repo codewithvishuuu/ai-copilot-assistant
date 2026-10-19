@@ -47,9 +47,11 @@ ollama pull gemma4:e2b
 
 1. Create an application → **Bot** → copy the token into `.env` as `DISCORD_TOKEN`.
    **Never** paste the token into chat, source code, or documentation.
-2. Invite URL scopes: `bot` + `applications.commands`, with **only** these permissions:
-   View Channels · Read Message History · Send Messages · Embed Links · Use Slash Commands.
-   No Administrator, no Manage Server, no Kick/Ban, no Mention Everyone.
+2. Invite URL scopes: `bot` + `applications.commands` (the scope that enables slash
+   commands — it is not a permission checkbox), with **only** these bot permissions:
+   View Channels · Read Message History · Send Messages · Embed Links
+   (permission integer `84992`). No Administrator, no Manage Server, no Kick/Ban,
+   no Mention Everyone.
 3. **No privileged intents are required.** The bot never listens to ordinary message events;
    it reads threads on demand only when someone runs `/summarize`.
 4. For fast command sync while developing, set `TEST_GUILD_ID` in `.env`.
@@ -57,8 +59,9 @@ ollama pull gemma4:e2b
 ## Commands
 
 Status column mirrors [PLAN.md](PLAN.md). `implemented` = code + mocked tests pass;
-`verified` = also exercised against real Discord/Ollama. **No command is `verified` yet** —
-live Discord testing requires a token (see [DEPLOYMENT.md](DEPLOYMENT.md)).
+`verified` = also exercised against real Discord/Ollama. Automated tests pass, and selected
+live Discord smoke tests have passed — not every command is live-tested yet
+(see [DEPLOYMENT.md](DEPLOYMENT.md)).
 
 | Command | Who | Status | Purpose |
 |---|---|---|---|

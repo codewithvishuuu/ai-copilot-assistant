@@ -49,21 +49,21 @@ Copy-Item .env.example .env
 
 ## Recorded environment check (2026-10-18, dev PC)
 
-Real output of `scripts\check_prereqs.py` on the dev machine — the one `FAIL` is expected
+Real output of `scripts\check_prereqs.py` on the dev machine (local paths genericized) — the one `FAIL` is expected
 until you create `.env`; the script exits non-zero so CI/scripts can detect it:
 
 ```text
 Community Copilot — environment check
-project: C:\Users\VISHAL KUMAR\community-copilot
+project: C:\Users\<you>\community-copilot
 --------------------------------------------------------------
 
 [ OK ] Python           3.11.9
 [ OK ] SQLite FTS5      sqlite 3.45.1
-[ OK ] Ollama CLI       C:\Users\VISHAL KUMAR\AppData\Local\Programs\Ollama\ollama.EXE
+[ OK ] Ollama CLI       C:\Users\<you>\AppData\Local\Programs\Ollama\ollama.EXE
 [ OK ] Ollama server    v0.40.2 at http://localhost:11434
 [ OK ] Model installed  gemma4:e2b — capabilities: completion, vision, audio, tools, thinking; context 131,072
 [FAIL] .env file        missing — copy .env.example to .env and fill it in
-[ OK ] Data directory   writable: C:\Users\VISHAL KUMAR\community-copilot\data
+[ OK ] Data directory   writable: C:\Users\<you>\community-copilot\data
 [ OK ] Disk space       95.3 GB free (model needs ~4.6 GB)
 [ OK ] RAM              8.4 GB total, 3.2 GB free — expect CPU-limited generation on this machine
 --------------------------------------------------------------

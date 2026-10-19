@@ -43,6 +43,10 @@ class ModerationCog(CopilotCog):
             return
         if not await checks.ensure_moderator(interaction, self.settings):
             return
+        # Ack before the first state change - same class as reject_solution: a stall
+        # between here and the reply can miss Discord's 3-second initial-response
+        # window while the correction sticks. reply() then uses the follow-up window.
+        await interaction.response.defer(ephemeral=True)
         thread_row_id = await self._ensure_thread_row(thread)
         await self.repo.add_correction(
             thread_id=thread_row_id,
@@ -84,6 +88,8 @@ class ModerationCog(CopilotCog):
             return
         if not await checks.ensure_moderator(interaction, self.settings):
             return
+        # Ack before the first state change (same reason as reject_solution).
+        await interaction.response.defer(ephemeral=True)
         thread_row_id = await self._ensure_thread_row(thread)
         body = solution
         if note:
@@ -116,6 +122,8 @@ class ModerationCog(CopilotCog):
             return
         if not await checks.ensure_moderator(interaction, self.settings):
             return
+        # Ack before the state change (same reason as reject_solution).
+        await interaction.response.defer(ephemeral=True)
         ok, reason = await solutions.approve_solution(
             self.repo, solution_id=solution_id, actor_id=str(interaction.user.id)
         )
@@ -141,6 +149,12 @@ class ModerationCog(CopilotCog):
             return
         if not await checks.ensure_moderator(interaction, self.settings):
             return
+        # Ack before the state change: live 2026-10-19, this fast handler still lost
+        # its reply to an environmental stall that pushed the POST past Discord's
+        # 3-second initial-response window (404/10062 "Unknown interaction") while
+        # the rejection stuck. Deferring keeps the confirmation inside the
+        # 15-minute follow-up window (reply() already routes to followup.send).
+        await interaction.response.defer(ephemeral=True)
         ok, reason = await solutions.reject_solution(
             self.repo, solution_id=solution_id, actor_id=str(interaction.user.id), note=note
         )

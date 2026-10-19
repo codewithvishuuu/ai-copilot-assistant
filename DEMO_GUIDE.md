@@ -10,7 +10,7 @@ is that **everything runs locally** — no cloud account, no API key, no dashboa
 | 1 | Start Ollama headless if the tray app server is dead: `ollama serve` | The tray server can die (GPU watchdog timeouts observed on the dev PC) |
 | 2 | In `.env`: `OLLAMA_KEEP_ALIVE=6h` | The model's cold load is ~34 s; pay it once before the audience arrives |
 | 3 | Warm-up: run `/summarize` on any small thread yourself | Confirms the model is loaded and the bot answers in warm ~4–6 s |
-| 4 | In `.env`: `EPHEMERAL_BY_DEFAULT=false` **for demo day only** | Ephemeral replies are invisible to the audience; on stage the replies must be public. Flip back after — see the privacy note in README.md |
+| 4 | In `.env`: `EPHEMERAL_BY_DEFAULT=false` **for demo day only** | Makes only the **`/summarize`** reply public — the highlight of the show. Every other command stays private regardless of this setting (see the visibility note below). Flip it back after the demo |
 | 5 | Run `.venv\Scripts\python.exe scripts\check_prereqs.py` | Every line `[ OK ]` except the intentional ones; catches a missing model before the show |
 | 6 | Start the bot: `.venv\Scripts\python.exe main.py`; confirm command sync | Slash commands may not appear if `TEST_GUILD_ID` is unset (global sync is slow) |
 | 7 | Prepare three threads in the test guild (below) | The demo needs the right material, not luck |
@@ -25,6 +25,12 @@ is that **everything runs locally** — no cloud account, no API key, no dashboa
 - **Thread C — error text**: paste a long Python stack trace into a thread for `/debug`.
 
 ## The script (≈6 minutes)
+
+> **Visibility on stage:** `EPHEMERAL_BY_DEFAULT=false` makes only **`/summarize`** replies public
+> to the channel. Every other command — `/cancel`, `/status`, `/correct-status`, `/resolve`,
+> `/approve-solution`, `/reject-solution`, `/kb-search`, `/debug`, `/insights`, `/forget` — is
+> **always private** (requester-only) no matter what. Present those from your own client with
+> screen sharing and narrate what the audience cannot see.
 
 | Time | Step | What you say / show |
 |---|---|---|
@@ -62,5 +68,5 @@ is that **everything runs locally** — no cloud account, no API key, no dashboa
 | Can the model run code or open links? | No. It has no tools, no shell, no filesystem, no network. Prompt text is fenced; control tokens are stripped; output is schema-validated and source IDs are checked against the real thread. |
 | What about prompt injection in threads? | Treated as a first-class threat: fenced untrusted data, no tool access, output validation, mention neutralization — THREAT_MODEL.md lists the exact cases. |
 | Does it need a server or dashboard? | No. Discord is the entire interface; deployment is one folder + Ollama (DEPLOYMENT.md). |
-| What permissions does the bot need? | View Channels, Read Message History, Send Messages, Embed Links, Use Slash Commands — and **no privileged intents**. |
+| What permissions does the bot need? | View Channels, Read Message History, Send Messages, Embed Links (permission integer `84992`), plus the `applications.commands` scope for slash commands — and **no privileged intents**. |
 | What happens to my data? | Local SQLite with `RETENTION_DAYS` sweep and `/forget`; optional content logging is off by default. |

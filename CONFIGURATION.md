@@ -58,13 +58,13 @@ All configuration lives in a local `.env` file (never committed) read through
 | `RETENTION_DAYS` | `90` | Stored messages/summaries older than this are swept. |
 | `LOG_LEVEL` | `INFO` | Standard logging level for local logs. |
 | `DEBUG_LOG_CONTENT` | `false` | If true, logs excerpts of message content — privacy risk, local debugging only. |
-| `EPHEMERAL_BY_DEFAULT` | `true` | Slash replies only the requester sees (where Discord allows). Does not make source data private from the bot — see SECURITY.md. |
+| `EPHEMERAL_BY_DEFAULT` | `true` | Controls **`/summarize` replies only**: `true` = requester-only, `false` = channel-visible (for presentations). All other commands are always private regardless. Hiding the reply does not make source data private from the bot — see SECURITY.md. |
 
 ## Insights
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `INSIGHTS_MIN_THREADS` | `5` | Minimum stored summaries before `/insights` shows anything. |
+| `INSIGHTS_MIN_THREADS` | `5` | Minimum number of distinct threads summarized within the look-back window (`INSIGHTS_WINDOW_DAYS`) before `/insights` shows anything. |
 | `INSIGHTS_WINDOW_DAYS` | `30` | Look-back window for insight aggregates. |
 
 ## Rules of thumb

@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 import discord
 from discord.ext import commands
 
+from ..util.logging import redact
+
 if TYPE_CHECKING:
     from ..bot import CommunityCopilot
 
@@ -61,13 +63,21 @@ class CopilotCog(commands.Cog):
         """
         if embed is not None and embeds is not None:
             raise ValueError("pass embed or embeds, not both")
-        kwargs = {"ephemeral": ephemeral, "allowed_mentions": discord.AllowedMentions.none()}
+        # discord.py uses a MISSING sentinel: an explicit `embed=None` counts as
+        # "provided" and raises TypeError("Cannot mix embed and embeds keyword
+        # arguments.") when `embeds` is also passed (live /status crash CC-8480),
+        # so forward only the form the caller actually used.
+        kwargs: dict = {"ephemeral": ephemeral, "allowed_mentions": discord.AllowedMentions.none()}
+        if embeds is not None:
+            kwargs["embeds"] = embeds
+        elif embed is not None:
+            kwargs["embed"] = embed
         try:
             if interaction.response.is_done():
-                await interaction.followup.send(content=content, embed=embed, embeds=embeds, **kwargs)
+                await interaction.followup.send(content=content, **kwargs)
             else:
-                await interaction.response.send_message(
-                    content=content, embed=embed, embeds=embeds, **kwargs
-                )
-        except discord.HTTPException:
-            log.warning("Could not deliver interaction reply (HTTPException)")
+                await interaction.response.send_message(content=content, **kwargs)
+        except discord.HTTPException as exc:
+            # Never swallow the reason: a bare "(HTTPException)" made live reply
+            # failures (e.g. /cancel "did not respond") impossible to diagnose.
+            log.warning("Could not deliver interaction reply (HTTPException): %s", redact(str(exc))[:200])
