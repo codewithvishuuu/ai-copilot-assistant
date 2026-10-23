@@ -1,15 +1,17 @@
 # Community Copilot — Security Controls
 
 > Rule of this document: **a control exists only when it is implemented AND has a test or an
-> explicitly documented manual verification**. Status updated 2026-10-22 after the Phase 0.5
+> explicitly documented manual verification**. Status updated 2026-10-23 after the Phase 0.5
 > tenancy/target-scope hardening (schema v4), the Phase 1 read-only agent/skill foundation, the
-> Phase 2A backend approval state machine (schema v5), and the Phase 2B Content Studio
-> (schema v6): explicit target threads are guild/allowlist checked, knowledge-base and insight
-> queries are guild-scoped, only `approved=1` documents enter chat grounding or content drafts,
-> skills are explicit typed application code rather than model tools, and content publication
+> Phase 2A backend approval state machine (schema v5), the Phase 2B Content Studio (schema v6),
+> Community Pulse/knowledge candidates (schema v7), and the mission/research/planning/evaluation
+> phase (schema v8): explicit target threads are guild/allowlist checked, knowledge-base and
+> insight queries are guild-scoped, only `approved=1` documents enter chat grounding or content
+> drafts, skills are explicit typed application code rather than model tools, content publication
 > requires a stored human approval bound to the exact target/version plus a fresh authority and
-> permission check at send time. Earlier live smoke evidence (mention chat, slash commands)
-> remains in `data/logs/copilot.log`; see [PLAN.md](PLAN.md).
+> permission check at send time, missions are fixed read-only plans, research is search-only with
+> provider-only citations, and planning artifacts are inert drafts. Earlier live smoke evidence
+> (mention chat, slash commands) remains in `data/logs/copilot.log`; see [PLAN.md](PLAN.md).
 > Legend: `planned` · `implemented+tested` · `implemented (manual)` · `by design`.
 
 ## 1. Secrets
@@ -21,6 +23,7 @@
 | Errors shown to users never contain secrets; full tracebacks only in local logs | implemented+tested | `errors.py` keeps `.detail` for logs only; user messages asserted detail-free in queue/checks/collector tests |
 | `.env` gitignored before first commit; `.env.example` placeholders only | done | `.gitignore`, `.env.example` |
 | No token in documentation, tests, fixtures, or terminal output | done (process) | tests use an obvious placeholder only; reviewed at each phase |
+| Search-provider keys (`BRAVE_SEARCH_API_KEY`, `TAVILY_API_KEY`) are `SecretStr`, only the configured provider's key is read, and no key appears in reports, embeds or logs | implemented+tested | `config.py` — `test_config.py`, `test_research.py` (fake key only; provider construction asserted) |
 
 ## 2. Authorization
 
@@ -44,6 +47,10 @@
 | Phase 3 Community Pulse reads only guild-scoped stored summaries and approved/unapproved KB rows; it emits no member profiles, yields no output below `INSIGHTS_MIN_THREADS`, and labels every recommendation as an estimate with an uncertainty indicator | implemented+tested | `core/community_pulse.py`, `agents/builtin.py::PulseSkill`, `cogs/pulse.py` - `test_community_pulse.py`, `test_cogs_pulse.py` |
 | Content approval requires a different trusted human moderator than the author of the exact version; the current version author is the Phase 2A requester even when another moderator submits, and the editor of a new version cannot approve it | implemented+tested | `core/content_studio.py`, `core/approvals.py` - `test_content_studio.py` (self/cross-editor approval denial) |
 | Publication rechecks the current Discord member's moderator rights, guild/channel allowlists, target existence and bot send permission immediately before claiming/sending; publishing is off by default | implemented+tested | `core/publishing.py::_revalidate_actor`, `ui/content.py::verify_actor`/`send_content`, `config.py` - `test_content_studio.py` (demotion, allowlist/target, disabled gate); live Discord not run |
+| Mission commands are moderator-only and guild-scoped; missions select from a fixed plan over read-only skills, never from model output, and every mission/step read and mutation filters on the interaction guild | implemented+tested | `cogs/missions.py::_gate`, `missions/planner.py`, `missions/service.py`, `db/repository.py` - `test_missions.py` (moderator denial, cross-guild isolation, disabled), `test_ui_surfaces.py` |
+| Research, radar, planning and evaluation commands are gated server-side: `/research*`, `/radar`, `/calendar*`, `/event-plan*`, `/reply-*` require a moderator; `/evaluate` and `/evaluation-latest` require a configured dev user; all reads/writes are guild-scoped | implemented+tested | `cogs/research.py`, `cogs/radar.py`, `cogs/planning.py`, `cogs/evaluation.py`, `ui/checks.py` - `test_research.py`, `test_content_planning.py`, `test_evaluation.py`, command regressions |
+| Planning actions require a trusted human actor with `decide`; reply/event/calendar operations created by a non-human or unpermitted actor are refused | implemented+tested | `core/content_planning.py::_require_planner` - `test_content_planning.py` (non-human actor denial) |
+| Research-to-draft provenance can only use a completed report from the same guild; it cannot submit, approve, cancel or publish | implemented+tested | `research/service.py`, `cogs/research.py` - `test_research.py` (cross-guild and failed report denial) |
 
 * Moderator permission check has unit tests; the command-level wiring is exercised in the manual smoke test.
 
@@ -60,6 +67,9 @@
 | Image count/size/pixel caps | implemented+tested | `core/images.py` — `tests/unit/test_images.py` |
 | Bounded simultaneous model calls (`OLLAMA_MAX_CONCURRENT`) and bounded chat waiters (`CONVERSATION_MAX_WAITING`) with one rate-limited notice beyond the bound | implemented+tested | `llm/ollama_provider.py`, `cogs/conversation.py` — `test_provider.py` (cap enforced; slot released on error/cancel), `test_cogs_conversation.py` (waiter cap; waiter count released on cancel) |
 | Chat throttling feedback is non-escalating: at most one static notice per user per 5 minutes, even under a burst | implemented+tested | `cogs/conversation.py` — `test_cogs_conversation.py` |
+| Missions are bounded: capped step count, per-step timeout/output cap, goal-length limit, one running step at a time, and cancellation checked between steps | implemented+tested | `missions/service.py`, `missions/planner.py`, `config.py` - `test_missions.py` (step cap, long goal, timeout, cancellation) |
+| Research is bounded by timeout/result count/character budget and a per-report source cap; a provider failure ends the report as `unavailable`/`failed` instead of retrying unboundedly | implemented+tested | `research/provider.py`, `research/service.py` - `test_research.py` |
+| Reply-draft generation is bounded by `CONTEXTUAL_REPLY_MAX_CHARS` and one model call; calendar/event-plan sizes are bounded by config | implemented+tested | `core/content_planning.py` - `test_content_planning.py` |
 
 ## 4. Prompt injection & untrusted content
 
@@ -75,6 +85,9 @@
 
 | Phase 2B draft generation admits only guild-scoped approved `kb_docs` as optional context, sanitized + fenced with a case-insensitive fence-close scrub; the prompt forbids invented facts/citations/links/dates/commitments and requires `needs_research` when current facts are missing | implemented+tested | `llm/prompts.py::build_content_prompt`, `core/content_studio.py::_context` - `test_content_studio.py` (untrusted context, fence breakout, malformed/unavailable provider, research blocking) |
 | Phase 2B generated text is validated (required/length/control characters/mass mentions) and `needs_research` is a blocking finding; exact-duplicate hash match is surfaced as a warning to the human reviewer | implemented+tested | `core/content_studio.py::_validate_content` - `test_content_studio.py` |
+| Research snippets/titles from the search provider are untrusted data: sanitized and bounded before the synthesis prompt, and model-produced URLs are stripped so citations can only come from provider results | implemented+tested | `research/service.py`, `research/provider.py`, `llm/prompts.py` - `test_research.py` (URL stripping, extractive fallback) |
+| Reply drafts neutralize mass mentions and are persisted as drafts only; no code path sends them | implemented+tested | `core/content_planning.py` - `test_content_planning.py` (`@\u200beveryone` neutralization, never-sent state) |
+| Search results are never fetched, so a malicious result cannot drive an SSRF request; the only network calls are the configured search API and local Ollama | implemented+tested | `research/provider.py`, `research/service.py` - `test_research.py` (`safe_source_url` rejects private/local/credential URLs) |
 
 ## 5. Attachments
 
@@ -103,6 +116,7 @@
 | Chat turns stored scoped per (guild, channel, user); reads database-first and bounded (turn/char budget) | implemented+tested | `core/chat_memory.py`, `db/repository.py` — `test_chat_memory.py`, `test_repository.py` |
 | Chat retention: age sweep (`CONVERSATION_RETENTION_DAYS`) in the daily loop + per-scope row cap (`CONVERSATION_MAX_STORED_TURNS`) pruned on every write | implemented+tested | `db/retention.py`, `db/repository.py` — `test_retention.py`, `test_repository.py` |
 | `/clear-conversation` deletes only the caller's own turns in one channel/thread (in-flight-safe, transactional, audited count) | implemented+tested | `cogs/conversation.py` — `test_cogs_conversation.py` |
+| `/conversation-status` exposes only the caller's own scope, requires the same guild/channel allowlist checks as clearing, and returns counts/timestamp bounds only — never message text; a database outage is labeled as in-memory fallback | implemented+tested | `cogs/conversation.py`, `core/chat_memory.py::stats`, `db/repository.py::conversation_turn_stats` — `test_cogs_conversation.py` (counts without content, cross-guild refusal), `test_chat_memory.py` (scope isolation, fallback honesty) |
 | The model can never widen scope or choose rows: prompts only ever contain the caller's own scope's turns (application code, not model-decided) | implemented+tested | `core/conversation.build_chat_messages` — `test_chat_memory.py` isolation tests |
 | Database outage degrades chat to in-process context only (bounded); a failed write is never reported as persisted | implemented+tested | `core/chat_memory.py` — `test_chat_memory.py` |
 | Clearing history does not delete summaries, corrections, solutions, KB documents, or audit rows | implemented+tested | `cogs/conversation.py` — `test_cogs_conversation.py` (unrelated-records regression) |
@@ -111,6 +125,10 @@
 | Phase 3 candidate audit metadata stores ids, source kind/summary, content hash and finding codes only - never candidate text. Automatic thread expiry removes pending candidates and unreviewed fingerprints but preserves approved `kb_docs`; only explicit `/forget` or `/knowledge-purge` deletes approved knowledge; audit rows are never swept | implemented+tested | `core/knowledge_candidates.py`, `db/retention.py`, `db/schema.sql` (migration 7) - `test_knowledge_candidates.py` (audit text absence, retention), `test_retention.py` |
 | `/knowledge-purge` requires the allowlist, a fresh moderator check, a trusted human `decide` actor, and the document's guild; it deletes one approved `kb_docs` row and audits the event in one transaction. The audit stores ids/kind/source ref/body length, never title, URL or body; FTS follows via triggers; a failed audit rolls the delete back | implemented+tested | `cogs/knowledge.py`, `core/knowledge_purge.py`, `db/repository.py::purge_approved_kb_doc` - `test_knowledge_purge.py`, `test_cogs_knowledge.py` |
 | Audit rows are append-only and retained indefinitely; no retention sweep, `/forget`, conversation clear or KB purge deletes them. Metadata is ids/counts/states/hashes/codes only; free-text notes are not copied into audit records | implemented+tested + documented | `db/repository.py`, `core/solutions.py`, `AUDIT.md` - `test_knowledge_purge.py` (metadata excludes content), `test_solutions.py` |
+| Missions, mission steps, research reports, calendar entries, event plans, reply drafts and evaluation reports are guild-scoped in the repository; no cross-guild read or mutation is exposed | implemented+tested | `db/repository.py`, `missions/service.py`, `research/service.py`, `core/content_planning.py`, `core/evaluation.py` - `test_missions.py`, `test_research.py`, `test_content_planning.py`, `test_evaluation.py` (cross-guild isolation cases) |
+| Research reports store the query locally, but audit rows contain ids/status/provider only — never the query text, snippets or source titles | implemented+tested | `research/service.py` - `test_research.py` (audit excludes query) |
+| Planning artifacts are inert: calendar entries schedule nothing, event plans create nothing, reply drafts are never sent; deleting/dismiss/archive only changes local rows | implemented+tested | `core/content_planning.py`, `cogs/planning.py` - `test_content_planning.py` |
+| Offline evaluation uses temporary databases only and never touches the runtime DB; the report contains counts/codes and explicitly states model quality was not evaluated | implemented+tested | `core/evaluation.py` - `test_evaluation.py` (temporary DB isolation, disclaimer, failed-check handling) |
 
 ## 7. Discord surface
 
@@ -133,4 +151,8 @@
 | Phase 2B publishing is at-most-once: success is recorded only after Discord returns a message id; definite send failures are recorded as failed; timeout/5xx/unknown sends leave `executing` and are never retried automatically. `/content-recover` records success only when the exact nonce + content is found in the target channel, otherwise the claim is left untouched | implemented+tested | `core/publishing.py`, `ui/content.py`, `core/approvals.py::reconcile_execution` - `test_content_studio.py` (definite/ambiguous/timeout/rate-limit, restart recovery, no-evidence leaves claim) |
 | Honest delivery: sending stops at the first failed chunk; failures are logged once (typed + redacted) and reported as `delivered=False` — never claimed as sent | implemented+tested | `cogs/conversation.py` — `test_cogs_conversation.py` (single-chunk, partial and rate-limit failures) |
 | Chat timeouts and cancellations release the scope guard, the model slot and the typing indicator (`finally` on every path) and persist nothing | implemented+tested | `cogs/conversation.py`, `llm/ollama_provider.py` — `test_cogs_conversation.py`, `test_provider.py` |
+| A mission failure/timeout/cancel persists a truthful terminal status with honest completed/total counts; startup recovery closes interrupted runs as `failed`/`interrupted`. No mission is left `running` after restart | implemented+tested | `missions/service.py`, `db/repository.py::fail_interrupted_missions` - `test_missions.py` (failure progress, cancellation, restart recovery) |
+| Research unavailability is reported, never faked: disabled/missing key/provider error/no results persist an `unavailable`/`failed` report with no invented citations | implemented+tested | `research/service.py` - `test_research.py` (unavailable, provider error, no results) |
+| Planning state changes are conditional and one-way (`draft→archived`, `planned→cancelled`, `draft→dismissed`); a repeated operation fails with a safe message instead of silently succeeding | implemented+tested | `db/repository.py`, `core/content_planning.py` - `test_content_planning.py` (second cancel rejected, archive guard) |
+| An evaluation report fails if any check fails; the failure is persisted and shown honestly, not swallowed | implemented+tested | `core/evaluation.py` - `test_evaluation.py` (permissive skill regression fails report) |
 | Security features are not claimed as working until tested (this document's status column is the claim) | process | maintained every phase |

@@ -15,7 +15,7 @@ import logging
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +41,12 @@ from .approvals import (
     ApprovalPermission,
     ApprovalService,
     ApprovalState,
+)
+from .content_voice import (
+    VoiceProfile,
+    load_voice_profile,
+    recent_feedback_prompt,
+    similarity_ratio,
 )
 
 log = logging.getLogger(__name__)
@@ -76,6 +82,15 @@ class ContentType(str, Enum):
     educational_post = "educational_post"
     poll_proposal = "poll_proposal"
     event_announcement = "event_announcement"
+
+
+class ContentLength(str, Enum):
+    short = "short"
+    medium = "medium"
+    long = "long"
+
+    def max_chars(self, cap: int) -> int:
+        return {"short": 500, "medium": 1000, "long": cap}[self.value]
 
 
 class DraftStatus(str, Enum):
@@ -122,6 +137,9 @@ class DraftRequest(BaseModel):
     audience: str = Field(default="", max_length=MAX_AUDIENCE_CHARS)
     tone: str = Field(default="", max_length=MAX_TONE_CHARS)
     purpose: str = Field(default="", max_length=MAX_PURPOSE_CHARS)
+    length: ContentLength = ContentLength.medium
+    formatting: str = Field(default="", max_length=200)
+    emoji_policy: Literal["", "none", "sparing", "allowed"] = ""
 
 
 class ContentDraftView(BaseModel):
@@ -143,6 +161,8 @@ class ContentDraftView(BaseModel):
     version: int
     content: str
     content_hash: str
+    source_kind: str = "manual"
+    source_ref: str | None = None
     findings: list[ValidationFinding] = Field(default_factory=list)
     status: DraftStatus
     approval_id: int | None = None
@@ -213,16 +233,26 @@ class ContentGenerator:
         request: DraftRequest,
         *,
         context: Sequence[tuple[str, str]] = (),
+        voice: VoiceProfile | None = None,
+        feedback: Sequence[str] = (),
+        approved_examples: Sequence[str] = (),
     ) -> ContentDraftOutput:
+        max_chars = request.length.max_chars(self._max_chars)
         bounded_context = _bounded_context(context, self._max_context_chars)
+        voice_lines = voice.prompt_lines() if voice is not None else []
         user = prompts.build_content_prompt(
             content_type=request.content_type.value,
             topic=request.topic,
             audience=request.audience,
             tone=request.tone,
             purpose=request.purpose,
-            max_chars=self._max_chars,
+            max_chars=max_chars,
             context=bounded_context,
+            voice_lines=voice_lines,
+            feedback=feedback,
+            approved_examples=_bounded_examples(approved_examples, self._max_context_chars),
+            formatting=request.formatting or (voice.formatting if voice is not None else ""),
+            emoji_policy=request.emoji_policy or (voice.emoji_policy if voice is not None else ""),
         )
         _, output, _repair = await self._chat_validated(
             system=prompts.SYSTEM_CONTENT,
@@ -232,8 +262,8 @@ class ContentGenerator:
         )
         if not output.has_content():
             raise OutputValidationError("The model returned an empty content draft.")
-        if len(output.content) > self._max_chars:
-            raise OutputValidationError(f"The model draft exceeded the configured {self._max_chars}-character limit.")
+        if len(output.content) > max_chars:
+            raise OutputValidationError(f"The model draft exceeded the requested {max_chars}-character limit.")
         return output
 
     async def _chat_validated(self, *, system: str, user: str, schema: dict, parser):
@@ -287,10 +317,15 @@ class ContentStudio:
         *,
         target: ContentTarget,
         provider: LLMProvider,
+        source_kind: str = "manual",
+        source_ref: str | None = None,
     ) -> ContentDraftView:
         self._require(actor, ApprovalPermission.propose)
         self._validate_target(actor, target)
         context = await self._context(request.topic, guild_id=actor.guild_id)
+        voice = await self._voice(actor.guild_id)
+        feedback = await self._feedback(actor.guild_id)
+        examples = await self._approved_examples(actor.guild_id)
         generator = ContentGenerator(
             provider,
             max_chars=self._settings.content_generation_max_chars,
@@ -298,7 +333,13 @@ class ContentStudio:
             max_tokens=self._settings.content_generation_max_tokens,
             max_context_chars=self._settings.content_context_max_chars,
         )
-        output = await generator.generate(request, context=context)
+        output = await generator.generate(
+            request,
+            context=context,
+            voice=voice,
+            feedback=feedback,
+            approved_examples=examples,
+        )
         extra: list[ValidationFinding] = []
         if output.needs_research:
             detail = output.research_notes or "Current facts needed for this topic were not available."
@@ -316,7 +357,16 @@ class ContentStudio:
                     severity=ValidationSeverity.warning,
                 )
             )
-        return await self.create_draft(actor, request, output.content, target=target, extra=extra, allow_blocking=True)
+        return await self.create_draft(
+            actor,
+            request,
+            output.content,
+            target=target,
+            extra=extra,
+            allow_blocking=True,
+            source_kind=source_kind,
+            source_ref=source_ref,
+        )
 
     async def create_draft(
         self,
@@ -327,6 +377,8 @@ class ContentStudio:
         target: ContentTarget,
         extra: Sequence[ValidationFinding] = (),
         allow_blocking: bool = False,
+        source_kind: str = "manual",
+        source_ref: str | None = None,
     ) -> ContentDraftView:
         """Store a new draft and immutable version 1 from trusted application input.
 
@@ -341,6 +393,12 @@ class ContentStudio:
             duplicate = await self._duplicate_check(content, guild_id=actor.guild_id, exclude_draft_id=None)
             if duplicate is not None:
                 findings.append(duplicate)
+            else:
+                near = await self._near_duplicate_check(
+                    content, guild_id=actor.guild_id, exclude_draft_id=None
+                )
+                if near is not None:
+                    findings.append(near)
         blocking = any(item.severity is ValidationSeverity.error for item in findings)
         if blocking and (not allow_blocking or not content.strip()):
             raise ContentValidationError(detail=_findings_detail(findings))
@@ -359,6 +417,8 @@ class ContentStudio:
             content=content,
             content_hash=content_hash(content),
             validation_json=_dump_findings(findings),
+            source_kind=source_kind,
+            source_ref=source_ref,
         )
         return await self.get_draft(actor, draft_id)
 
@@ -397,6 +457,12 @@ class ContentStudio:
             duplicate = await self._duplicate_check(new_content, guild_id=actor.guild_id, exclude_draft_id=draft_id)
             if duplicate is not None:
                 findings.append(duplicate)
+            else:
+                near = await self._near_duplicate_check(
+                    new_content, guild_id=actor.guild_id, exclude_draft_id=draft_id
+                )
+                if near is not None:
+                    findings.append(near)
         if any(item.severity is ValidationSeverity.error for item in findings):
             raise ContentValidationError(detail=_findings_detail(findings))
 
@@ -593,7 +659,8 @@ class ContentStudio:
             action="content.published" if changed else "content.published_already_recorded",
             target_type="content_draft",
             target_id=str(draft_id),
-            meta={"approval_id": approval_id, "message_id": message_id},
+            guild_id=str(guild_id),
+            meta={"guild_id": str(guild_id), "approval_id": approval_id, "message_id": message_id},
         )
 
     async def mark_failed(
@@ -616,7 +683,8 @@ class ContentStudio:
             action="content.publish_failed" if changed else "content.publish_failure_recorded",
             target_type="content_draft",
             target_id=str(draft_id),
-            meta={"approval_id": approval_id, "error_code": error_code},
+            guild_id=str(guild_id),
+            meta={"guild_id": str(guild_id), "approval_id": approval_id, "error_code": error_code},
         )
 
     async def audit_ambiguous(self, candidate: PublishCandidate, *, execution_id: int) -> None:
@@ -625,7 +693,9 @@ class ContentStudio:
             action="content.publish_ambiguous",
             target_type="content_draft",
             target_id=str(candidate.draft_id),
+            guild_id=str(candidate.guild_id),
             meta={
+                "guild_id": str(candidate.guild_id),
                 "approval_id": candidate.approval_id,
                 "execution_id": execution_id,
                 "version": candidate.content_version,
@@ -675,6 +745,8 @@ class ContentStudio:
             version=int(draft["current_version"]),
             content=str(version["content"]),
             content_hash=str(version["content_hash"]),
+            source_kind=str(draft["source_kind"] or "manual"),
+            source_ref=str(draft["source_ref"]) if draft["source_ref"] else None,
             findings=findings,
             status=status,
             approval_id=int(approval["id"]) if approval is not None else None,
@@ -770,6 +842,67 @@ class ContentStudio:
             log.warning("Content context retrieval failed (%s)", type(exc).__name__)
             return []
         return [(str(row["title"] or ""), str(row["body"] or "")) for row in rows]
+
+    async def _voice(self, guild_id: int) -> VoiceProfile:
+        try:
+            return await load_voice_profile(self._repo, guild_id)
+        except Exception as exc:  # noqa: BLE001 - voice is optional style guidance
+            log.warning("Voice profile load failed (%s)", type(exc).__name__)
+            return VoiceProfile()
+
+    async def _feedback(self, guild_id: int) -> list[str]:
+        limit = int(self._settings.content_feedback_limit)
+        if limit <= 0:
+            return []
+        try:
+            rows = await self._repo.list_content_feedback(guild_id=str(guild_id), limit=limit)
+        except Exception as exc:  # noqa: BLE001 - feedback is optional style guidance
+            log.warning("Content feedback load failed (%s)", type(exc).__name__)
+            return []
+        return recent_feedback_prompt(rows, limit_chars=1_200)
+
+    async def _approved_examples(self, guild_id: int) -> list[str]:
+        if self._settings.content_context_max_chars <= 0:
+            return []
+        try:
+            rows = await self._repo.recent_approved_content(guild_id=str(guild_id), limit=3)
+        except Exception as exc:  # noqa: BLE001 - examples are optional style guidance
+            log.warning("Approved content example load failed (%s)", type(exc).__name__)
+            return []
+        return [str(row["content"] or "") for row in rows if str(row["content"] or "").strip()]
+
+    async def _near_duplicate_check(
+        self, content: str, *, guild_id: int, exclude_draft_id: int | None
+    ) -> ValidationFinding | None:
+        threshold = float(self._settings.content_similarity_threshold)
+        limit = int(self._settings.content_dedupe_recent)
+        if threshold <= 0 or limit <= 0:
+            return None
+        try:
+            rows = await self._repo.recent_approved_content(guild_id=str(guild_id), limit=limit)
+        except Exception as exc:  # noqa: BLE001 - advisory check only, exact hash still applies
+            log.warning("Near-duplicate check failed (%s)", type(exc).__name__)
+            return None
+        best_ratio = 0.0
+        best_row = None
+        for row in rows:
+            if exclude_draft_id is not None and int(row["draft_id"]) == int(exclude_draft_id):
+                continue
+            ratio = similarity_ratio(content, str(row["content"] or ""))
+            if ratio >= threshold and ratio > best_ratio:
+                best_ratio = ratio
+                best_row = row
+        if best_row is None:
+            return None
+        return ValidationFinding(
+            code="near_duplicate_content",
+            message=(
+                f"This draft closely repeats draft {int(best_row['draft_id'])} "
+                f"v{int(best_row['version'])} ({round(best_ratio * 100)}% word overlap). "
+                "Revise it or confirm the repetition is intentional before submitting."
+            ),
+            severity=ValidationSeverity.warning,
+        )
 
     def _validate_target(
         self,
@@ -926,5 +1059,23 @@ def _bounded_context(context: Sequence[tuple[str, str]], max_chars: int) -> list
         if not clipped.strip():
             continue
         out.append((title, clipped))
+        used += len(clipped)
+    return out
+
+
+def _bounded_examples(examples: Sequence[str], max_chars: int) -> list[str]:
+    if max_chars <= 0:
+        return []
+    budget = min(max_chars, 3_000)
+    out: list[str] = []
+    used = 0
+    for content in examples:
+        remaining = budget - used
+        if remaining <= 0:
+            break
+        clipped = content[:remaining]
+        if not clipped.strip():
+            continue
+        out.append(clipped)
         used += len(clipped)
     return out

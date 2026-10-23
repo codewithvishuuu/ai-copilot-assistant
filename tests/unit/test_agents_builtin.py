@@ -146,6 +146,7 @@ async def test_default_registry_contains_only_read_only_capabilities(tmp_db):
         "kb.search",
         "knowledge.candidates",
         "pulse.community",
+        "synthesis.brief",
     )
     assert all(skill.read_only is True for skill in registry.all())
     assert not any("publish" in skill_id or "delete" in skill_id for skill_id in registry.ids)
@@ -215,6 +216,8 @@ async def test_bot_wires_the_read_only_default_registry(tmp_path):
             "kb.search",
             "knowledge.candidates",
             "pulse.community",
+            "research.web",
+            "synthesis.brief",
         )
         assert all(skill.read_only is True for skill in bot.skill_registry.all())
         assert bot.orchestrator.registry is bot.skill_registry

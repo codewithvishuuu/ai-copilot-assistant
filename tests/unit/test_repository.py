@@ -193,6 +193,7 @@ async def test_search_kb_ranks_matches_and_returns_snippets(tmp_db):
         kind="solution",
         ref_id=1,
         guild_id="500",
+        approved=True,
         title="SQLite journal mode",
         body="The sqlite database returns locked errors under concurrent writes; enable WAL.",
         url=None,
@@ -201,6 +202,7 @@ async def test_search_kb_ranks_matches_and_returns_snippets(tmp_db):
         kind="solution",
         ref_id=2,
         guild_id="500",
+        approved=True,
         title="Discord rate limits",
         body="Respect the retry-after header when sending messages.",
         url=None,
@@ -242,12 +244,17 @@ async def test_search_kb_is_guild_scoped_and_approved_only_filters_fingerprints(
     )
 
     titles = [row["title"] for row in await repo.search_kb("deploy worker", guild_id="500")]
-    assert "Guild A deploy fix" in titles
-    assert "Guild A thread summary" in titles
+    assert titles == ["Guild A deploy fix"]
+    assert "Guild A thread summary" not in titles
     assert "Guild B deploy fix" not in titles
 
-    approved = await repo.search_kb("deploy worker", guild_id="500", approved_only=True)
-    assert [row["title"] for row in approved] == ["Guild A deploy fix"]
+    review = await repo.search_kb(
+        "deploy worker", guild_id="500", approved_only=False
+    )
+    review_titles = [row["title"] for row in review]
+    assert "Guild A deploy fix" in review_titles
+    assert "Guild A thread summary" in review_titles
+    assert "Guild B deploy fix" not in review_titles
 
 
 async def test_search_kb_returns_empty_for_unusable_query(tmp_db):
@@ -276,6 +283,7 @@ async def test_related_docs_excludes_the_source_thread(tmp_db):
         kind="thread",
         ref_id=thread_id,
         guild_id="500",
+        approved=True,
         title="Database locked on write",
         body="sqlite database locked when writing",
         url=None,
@@ -284,6 +292,7 @@ async def test_related_docs_excludes_the_source_thread(tmp_db):
         kind="solution",
         ref_id=1,
         guild_id="500",
+        approved=True,
         title="Enable WAL",
         body="sqlite database locking fix: enable WAL mode",
         url=None,

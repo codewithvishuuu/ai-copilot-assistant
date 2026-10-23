@@ -227,7 +227,7 @@ async def test_sweep_conversation_turns_deletes_only_expired_rows(tmp_db):
     assert counts["conversation_turns"] == 2  # both fresh rows kept
     assert counts["threads"] == 1
     assert counts["kb_docs"] == 1
-    assert await repo.search_kb("keep", guild_id="500") != []
+    assert await repo.search_kb("keep", guild_id="500", approved_only=False) != []
 
 
 async def test_sweep_conversation_turns_clamps_window_and_is_idempotent(tmp_db):

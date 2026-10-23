@@ -28,18 +28,20 @@ Design constraints (see README.md / ARCHITECTURE.md):
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ..core.attachments import AttachmentService, join_context_blocks
 from ..core.chat_memory import ChatMemory, ClearResult
-from ..core.collector import CollectedAttachment
 from ..core.conversation import (
     ConversationStore,
     Decision,
@@ -51,8 +53,15 @@ from ..core.conversation import (
     grounding_source_urls,
     split_message,
 )
-from ..core.images import prepare_images
-from ..errors import CopilotError, DatabaseError, NotAllowedError, new_error_code
+from ..errors import (
+    ApprovalSelfApprovalError,
+    CopilotError,
+    DatabaseError,
+    NotAllowedError,
+    ReplyApprovalConflictError,
+    ReplyApprovalNotFoundError,
+    new_error_code,
+)
 from ..llm.persona import (
     BUSY_REPLY,
     EMPTY_REPLY,
@@ -63,8 +72,9 @@ from ..llm.persona import (
     THROTTLED_REPLY,
 )
 from ..ui import checks
+from ..ui.embeds import build_memory_status_embed
 from ..util.logging import mask_id, redact
-from ..util.text import neutralize_mentions, truncate
+from ..util.text import neutralize_mentions
 from .base import CopilotCog
 
 if TYPE_CHECKING:
@@ -78,6 +88,105 @@ _MAX_TRACKED_USERS = 500
 # message per user per window, so repeated events never produce repeated noise.
 _HINT_COOLDOWN_S = 300.0
 _ALLOWED_MESSAGE_TYPES = {0, 19}  # default, reply
+
+_REPLY_STATE_CHOICES = [
+    app_commands.Choice(name="Pending", value="pending"),
+    app_commands.Choice(name="Approved (sending or sent state reset)", value="approved"),
+    app_commands.Choice(name="Rejected", value="rejected"),
+    app_commands.Choice(name="Sent", value="sent"),
+    app_commands.Choice(name="Failed", value="failed"),
+    app_commands.Choice(name="Expired", value="expired"),
+]
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _clip(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def reply_approval_embed(row) -> discord.Embed:
+    reply_id = int(row["id"])
+    state = str(row["state"])
+    color = {
+        "pending": discord.Color.gold(),
+        "approved": discord.Color.orange(),
+        "sent": discord.Color.green(),
+        "rejected": discord.Color.red(),
+        "failed": discord.Color.red(),
+        "expired": discord.Color.dark_grey(),
+    }.get(state, discord.Color.blurple())
+    embed = discord.Embed(
+        title=f"Held reply #{reply_id} · {state}",
+        description=_clip(str(row["content"]), 4096),
+        color=color,
+    )
+    embed.add_field(name="Channel", value=f"<#{int(row['channel_id'])}>", inline=True)
+    embed.add_field(name="Requested by", value=f"<@{int(row['requested_by'])}>", inline=True)
+    embed.add_field(name="Created", value=str(row["created_at"]), inline=True)
+    embed.add_field(name="Expires", value=str(row["expires_at"]), inline=True)
+    if row["reply_to_message_id"]:
+        link = (
+            f"https://discord.com/channels/{int(row['guild_id'])}/"
+            f"{int(row['channel_id'])}/{int(row['reply_to_message_id'])}"
+        )
+        embed.add_field(name="Replying to", value=f"[original message]({link})", inline=False)
+    if row["decided_by"]:
+        embed.add_field(name="Decided by", value=f"<@{int(row['decided_by'])}>", inline=True)
+    if row["decision_note"]:
+        embed.add_field(name="Decision note", value=_clip(str(row["decision_note"]), 1024), inline=False)
+    if row["sent_message_id"]:
+        embed.add_field(name="Sent message id", value=f"`{row['sent_message_id']}`", inline=True)
+    if row["error_code"]:
+        embed.add_field(name="Error code", value=f"`{row['error_code']}`", inline=True)
+    embed.set_footer(text=f"Exact stored text · hash {str(row['content_hash'])[:12]} · no edit path")
+    return embed
+
+
+class ReplyApprovalNoteModal(discord.ui.Modal, title="Review held reply"):
+    def __init__(self, cog: ConversationCog, reply_id: int, decision: str) -> None:
+        super().__init__()
+        self.cog = cog
+        self.reply_id = reply_id
+        self.decision = decision
+        self.note = discord.ui.TextInput(
+            label="Reviewer note (optional)",
+            style=discord.TextStyle.paragraph,
+            required=False,
+            max_length=500,
+        )
+        self.add_item(self.note)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        await self.cog._decide_reply_interaction(
+            interaction,
+            self.reply_id,
+            self.decision,
+            str(self.note.value or "") or None,
+        )
+
+
+class ReplyApprovalView(discord.ui.View):
+    """Moderator controls for one exact stored reply; content cannot be edited."""
+
+    def __init__(self, cog: ConversationCog, reply_id: int) -> None:
+        super().__init__(timeout=900)
+        self.cog = cog
+        self.reply_id = reply_id
+
+    @discord.ui.button(label="Approve & send", style=discord.ButtonStyle.success)
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.send_modal(
+            ReplyApprovalNoteModal(self.cog, self.reply_id, "approve")
+        )
+
+    @discord.ui.button(label="Reject", style=discord.ButtonStyle.danger)
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.send_modal(
+            ReplyApprovalNoteModal(self.cog, self.reply_id, "reject")
+        )
 
 
 class ConversationCog(CopilotCog):
@@ -96,6 +205,7 @@ class ConversationCog(CopilotCog):
             max_stored_turns=settings.conversation_max_stored_turns,
         )
         self._inference_gate = asyncio.Semaphore(1)
+        self.attachments = AttachmentService(getattr(bot, "repo", None), settings)
         self._waiting = 0  # chat requests currently waiting for the inference slot
         self._active_scopes: set[tuple[int | None, int, int]] = set()
         self._seen_message_ids: OrderedDict[int, None] = OrderedDict()
@@ -186,10 +296,11 @@ class ConversationCog(CopilotCog):
         mentioned = bot_mentioned_in(getattr(message, "mentions", ()) or (), bot_id)
         reply_to_bot = self._reply_targets_bot(message, bot_id)
         trigger = mentioned or reply_to_bot
+        trigger_kind = "mention" if mentioned else "reply-to-bot"
         if trigger:
             log.info(
                 "chat: trigger detected (reason=%s user=%s guild=%s channel=%s)",
-                "mention" if mentioned else "reply-to-bot",
+                trigger_kind,
                 mask_id(user_id),
                 mask_id(getattr(getattr(message, "guild", None), "id", None)),
                 mask_id(getattr(getattr(message, "channel", None), "id", None)),
@@ -258,11 +369,12 @@ class ConversationCog(CopilotCog):
         self._active_scopes.add(scope)
         try:
             async with message.channel.typing():
-                images, image_note = await self._prepare_attachments(message)
+                images, image_note, attachment_block = await self._attachment_inputs(message)
                 history = await self.memory.history(scope)
                 context_block, grounded_docs = await self._retrieve_grounding(
                     question, guild_id=scope[0]
                 )
+                context_block = join_context_blocks(attachment_block, context_block)
                 payload = build_chat_messages(
                     SYSTEM_PERSONA,
                     history,
@@ -324,6 +436,19 @@ class ConversationCog(CopilotCog):
         footer = self._grounding_footer(grounded_docs)
         if footer:
             display = f"{display}\n\n{footer}"
+        if settings.reply_approval_enabled:
+            # Public model-generated replies are gated when the operator enables
+            # reply approval. Static help/hint notices above stay unaffected: they
+            # are deterministic text with no model output or community data.
+            queued = await self._queue_reply_approval(message, display, trigger=trigger_kind)
+            log.info(
+                "chat: reply held for human approval (trigger=%s user=%s queued=%s chars=%d)",
+                trigger_kind,
+                mask_id(user_id),
+                queued,
+                len(display),
+            )
+            return False
         chunks = split_message(display)
         # One attempt per chunk, in order; the first failure stops delivery so a
         # partially delivered reply can never grow duplicates or arrive mangled.
@@ -352,6 +477,62 @@ class ConversationCog(CopilotCog):
         return delivered
 
     # --------------------------------------------------------------- commands
+
+    @app_commands.command(
+        name="conversation-status",
+        description="Show what conversation memory the bot stores for YOU (counts only)",
+    )
+    @app_commands.describe(channel="Channel or thread to inspect; defaults to this channel")
+    async def conversation_status(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.abc.GuildChannel | None = None,
+    ) -> None:
+        if not await checks.ensure_allowed(interaction, self.settings):
+            return
+        if not self.settings.conversation_enabled:
+            await self.reply(
+                interaction,
+                content="Conversation features are disabled on this bot, so no chat memory is stored.",
+            )
+            return
+
+        guild_id, current_channel_id, _parent_id = checks.interaction_ids(interaction)
+        target_channel_id = current_channel_id
+        if channel is not None:
+            target_guild_id = getattr(getattr(channel, "guild", None), "id", None)
+            if target_guild_id is not None and target_guild_id != guild_id:
+                await self.reply(
+                    interaction,
+                    content="You can only inspect your own memory in this server.",
+                )
+                return
+            if not checks.channel_allowed(
+                self.settings.channel_allowlist,
+                getattr(channel, "id", None),
+                getattr(channel, "parent_id", None),
+            ):
+                await self.reply(interaction, content=str(NotAllowedError()))
+                return
+            target_channel_id = getattr(channel, "id", None)
+
+        if guild_id is None or target_channel_id is None:
+            await self.reply(interaction, content=str(NotAllowedError()))
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        stats = await self.memory.stats((guild_id, int(target_channel_id), int(interaction.user.id)))
+        await self.reply(
+            interaction,
+            embed=build_memory_status_embed(
+                channel_id=int(target_channel_id),
+                stats=stats,
+                retention_days=self.settings.conversation_retention_days,
+                max_stored_turns=self.settings.conversation_max_stored_turns,
+                context_turns=self.settings.conversation_max_turns,
+                grounding_enabled=self.settings.conversation_grounding_enabled,
+            ),
+        )
 
     @app_commands.command(
         name="clear-conversation",
@@ -426,37 +607,57 @@ class ConversationCog(CopilotCog):
             )
             return
 
-        if result.deleted or result.memory_existed:
-            await self._audit_clear(interaction, int(target_channel_id), result)
+        attachment_count = await self.attachments.clear_scope(
+            guild_id=guild_id, channel_id=int(target_channel_id), user_id=user_id
+        )
+        if result.deleted or result.memory_existed or attachment_count:
+            await self._audit_clear(
+                interaction, int(target_channel_id), result, attachment_count
+            )
         log.info(
-            "chat: history cleared (user=%s channel=%s db_turns=%d memory_existed=%s)",
+            "chat: history cleared (user=%s channel=%s db_turns=%d attachments=%d memory_existed=%s)",
             mask_id(user_id),
             mask_id(target_channel_id),
             result.deleted,
+            attachment_count,
             result.memory_existed,
         )
         await self.reply(
-            interaction, content=self._clear_confirmation(int(target_channel_id), result)
+            interaction,
+            content=self._clear_confirmation(
+                int(target_channel_id), result, attachment_count
+            ),
         )
 
     @staticmethod
-    def _clear_confirmation(channel_id: int, result: ClearResult) -> str:
+    def _clear_confirmation(
+        channel_id: int, result: ClearResult, attachment_count: int = 0
+    ) -> str:
         mention = f"<#{channel_id}>"
+        attachment_note = (
+            f" Also deleted metadata/extracted text for {attachment_count} attachment(s)."
+            if attachment_count
+            else ""
+        )
         if result.deleted:
             return (
                 f"Cleared **{result.deleted}** stored conversation turn(s) of your history in "
                 f"{mention}. Only your own chat history was removed — summaries, solutions, "
-                "and the knowledge base are untouched."
+                f"and the knowledge base are untouched.{attachment_note}"
             )
-        if result.memory_existed:
+        if result.memory_existed or attachment_count:
             return (
                 f"Cleared your in-process conversation context for {mention} "
-                "(nothing had been stored in the database)."
+                f"(nothing had been stored in the database).{attachment_note}"
             )
         return f"You have no stored conversation history in {mention} — nothing to clear."
 
     async def _audit_clear(
-        self, interaction: discord.Interaction, channel_id: int, result: ClearResult
+        self,
+        interaction: discord.Interaction,
+        channel_id: int,
+        result: ClearResult,
+        attachment_count: int = 0,
     ) -> None:
         repo = getattr(self.bot, "repo", None)
         if repo is None:
@@ -467,10 +668,393 @@ class ConversationCog(CopilotCog):
                 action="conversation.cleared",
                 target_type="channel",
                 target_id=str(channel_id),
-                meta={"turns": result.deleted, "memory_only": not result.persistent},
+                guild_id=str(interaction.guild_id),
+                meta={
+                    "guild_id": str(interaction.guild_id),
+                    "turns": result.deleted,
+                    "attachments": attachment_count,
+                    "memory_only": not result.persistent,
+                },
             )
         except DatabaseError:  # an audit failure must not mask a successful clear
             log.warning("chat: could not write the conversation-clear audit row")
+
+    # --------------------------------------------------------- reply approvals
+
+    @app_commands.command(
+        name="reply-approvals",
+        description="Moderator: review public bot replies held for explicit approval",
+    )
+    @app_commands.choices(state=_REPLY_STATE_CHOICES)
+    async def reply_approvals(
+        self,
+        interaction: discord.Interaction,
+        state: app_commands.Choice[str] | None = None,
+    ) -> None:
+        if not self.settings.reply_approval_enabled:
+            await self.reply(
+                interaction,
+                content=(
+                    "Reply approval is disabled on this bot. Model-generated mention replies "
+                    "are sent directly; enable `REPLY_APPROVAL_ENABLED` to hold them for review."
+                ),
+            )
+            return
+        if not await checks.ensure_allowed(interaction, self.settings):
+            return
+        if not await checks.ensure_moderator(interaction, self.settings):
+            return
+        guild_id = getattr(interaction, "guild_id", None)
+        if guild_id is None:
+            await self.reply(interaction, content=str(NotAllowedError()))
+            return
+        wanted = state.value if state is not None else "pending"
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            await self.repo.expire_reply_approvals(now=_now_iso())
+            rows = await self.repo.list_reply_approvals(
+                guild_id=str(guild_id), state=wanted, limit=5
+            )
+            if not rows:
+                await self.reply(interaction, content=f"No **{wanted}** reply approvals in this server.")
+                return
+            for row in rows:
+                view = ReplyApprovalView(self, int(row["id"])) if wanted == "pending" else None
+                await self.reply(interaction, embed=reply_approval_embed(row), view=view)
+        except Exception as exc:  # noqa: BLE001
+            await self.handle_error(interaction, exc, action="listing held replies")
+
+    @app_commands.command(
+        name="reply-approve",
+        description="Moderator: approve and send one exact held reply to its stored channel",
+    )
+    async def reply_approve(
+        self,
+        interaction: discord.Interaction,
+        reply_id: int,
+        note: str | None = None,
+    ) -> None:
+        await self._decide_reply_interaction(interaction, reply_id, "approve", note)
+
+    @app_commands.command(
+        name="reply-reject",
+        description="Moderator: reject one held reply; nothing is sent",
+    )
+    async def reply_reject(
+        self,
+        interaction: discord.Interaction,
+        reply_id: int,
+        note: str | None = None,
+    ) -> None:
+        await self._decide_reply_interaction(interaction, reply_id, "reject", note)
+
+    async def _queue_reply_approval(self, message, content: str, *, trigger: str) -> bool:
+        """Store one exact public reply for human review; never falls back to sending."""
+        repo = getattr(self.bot, "repo", None)
+        if repo is None:
+            log.error("chat: reply approval is enabled but no repository is wired; reply was not sent")
+            return False
+        guild_id = getattr(getattr(message, "guild", None), "id", None)
+        channel_id = getattr(getattr(message, "channel", None), "id", None)
+        user_id = getattr(getattr(message, "author", None), "id", None)
+        message_id = getattr(message, "id", None)
+        if guild_id is None or channel_id is None or user_id is None:
+            return False
+        now = datetime.now(UTC)
+        expires = now + timedelta(seconds=int(self.settings.reply_approval_ttl_s))
+        try:
+            reply_id = await repo.insert_reply_approval(
+                guild_id=str(guild_id),
+                channel_id=str(channel_id),
+                reply_to_message_id=None if message_id is None else str(message_id),
+                content=content,
+                content_hash=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                requested_by=str(user_id),
+                created_at=now.isoformat(timespec="seconds"),
+                expires_at=expires.isoformat(timespec="seconds"),
+            )
+            action = (
+                "chat.mention_reply_approval_requested"
+                if trigger == "mention"
+                else "chat.chat_reply_approval_requested"
+            )
+            await repo.audit(
+                actor_id=str(user_id),
+                action=action,
+                target_type="reply_approval",
+                target_id=str(reply_id),
+                guild_id=str(guild_id),
+                meta={
+                    "guild_id": str(guild_id),
+                    "channel_id": str(channel_id),
+                    "trigger": trigger,
+                    "chars": len(content),
+                    "path": "mention_reply" if trigger == "mention" else "chat_reply",
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 - never send unapproved content
+            log.warning(
+                "chat: could not queue reply approval (%s); reply was not sent",
+                type(exc).__name__,
+            )
+            return False
+        log.info(
+            "chat: reply approval queued (id=%s trigger=%s channel=%s)",
+            reply_id,
+            trigger,
+            mask_id(channel_id),
+        )
+        return True
+
+    async def _decide_reply_interaction(
+        self,
+        interaction: discord.Interaction,
+        reply_id: int,
+        decision: str,
+        note: str | None,
+    ) -> None:
+        if not self.settings.reply_approval_enabled:
+            await self.reply(interaction, content="Reply approval is disabled on this bot.")
+            return
+        if not await checks.ensure_allowed(interaction, self.settings):
+            return
+        if not await checks.ensure_moderator(interaction, self.settings):
+            return
+        guild_id = getattr(interaction, "guild_id", None)
+        reviewer_id = str(getattr(getattr(interaction, "user", None), "id", ""))
+        if guild_id is None:
+            await self.reply(interaction, content=str(NotAllowedError()))
+            return
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            row, sent_chunks, total_chunks = await self._review_reply_approval(
+                guild_id=int(guild_id),
+                reviewer_id=reviewer_id,
+                reply_id=reply_id,
+                decision=decision,
+                note=note,
+            )
+            if decision == "reject":
+                await self.reply(
+                    interaction,
+                    content=f"Reply approval `#{reply_id}` rejected and discarded. Nothing was sent.",
+                )
+                return
+            if sent_chunks == total_chunks:
+                await self.reply(
+                    interaction,
+                    embed=reply_approval_embed(row),
+                    content=f"Approved and sent {sent_chunks} chunk(s) to the stored channel.",
+                )
+            elif sent_chunks:
+                await self.reply(
+                    interaction,
+                    embed=reply_approval_embed(row),
+                    content=(
+                        f"Approval recorded, but only {sent_chunks}/{total_chunks} chunk(s) were "
+                        "delivered. Do not retry: the remaining text is not re-sent automatically."
+                    ),
+                )
+            else:
+                await self.reply(
+                    interaction,
+                    embed=reply_approval_embed(row),
+                    content=(
+                        "Approval recorded, but delivery failed. The exact reply was not sent; "
+                        "nothing is retried automatically."
+                    ),
+                )
+        except Exception as exc:  # noqa: BLE001 - interaction callback must reply safely
+            await self.handle_error(interaction, exc, action="reviewing the held reply")
+
+    async def _review_reply_approval(
+        self,
+        *,
+        guild_id: int,
+        reviewer_id: str,
+        reply_id: int,
+        decision: str,
+        note: str | None,
+    ):
+        if decision not in {"approve", "reject"}:
+            raise ReplyApprovalConflictError("Unknown reply approval decision.")
+        repo = self.repo
+        await repo.expire_reply_approvals(now=_now_iso())
+        row = await repo.get_reply_approval(reply_id, guild_id=str(guild_id))
+        if row is None:
+            raise ReplyApprovalNotFoundError()
+        if str(row["state"]) != "pending":
+            raise ReplyApprovalConflictError()
+        if str(row["requested_by"]) == reviewer_id:
+            await self._audit_reply_denial(guild_id, reply_id, reviewer_id, "self_approval")
+            raise ApprovalSelfApprovalError()
+        expected = hashlib.sha256(str(row["content"]).encode("utf-8")).hexdigest()
+        if expected != str(row["content_hash"]):
+            await self._audit_reply_denial(guild_id, reply_id, reviewer_id, "hash_mismatch")
+            raise ReplyApprovalConflictError(
+                "The stored reply no longer matches its approval hash; nothing was sent."
+            )
+        state = "approved" if decision == "approve" else "rejected"
+        decided = await repo.decide_reply_approval(
+            reply_id,
+            guild_id=str(guild_id),
+            state=state,
+            decided_by=reviewer_id,
+            decided_at=_now_iso(),
+            note=note,
+        )
+        if not decided:
+            raise ReplyApprovalConflictError()
+        await repo.audit(
+            actor_id=reviewer_id,
+            action=f"chat.reply_approval_{state}",
+            target_type="reply_approval",
+            target_id=str(reply_id),
+            guild_id=str(guild_id),
+            meta={
+                "guild_id": str(guild_id),
+                "channel_id": str(row["channel_id"]),
+                "requested_by": str(row["requested_by"]),
+                "decision": state,
+                "chars": len(str(row["content"])),
+            },
+        )
+        refreshed = await repo.get_reply_approval(reply_id, guild_id=str(guild_id))
+        if decision == "reject":
+            return refreshed or row, 0, 0
+        return await self._deliver_reply_approval(refreshed or row, guild_id=guild_id, approver_id=reviewer_id)
+
+    async def _deliver_reply_approval(self, row, *, guild_id: int, approver_id: str):
+        """Send the exact stored text to the exact stored channel. Never re-edits."""
+        content = str(row["content"])
+        chunks = split_message(content)
+        repo = self.repo
+        channel = None
+        failure = "destination_unavailable"
+        guild = self.bot.get_guild(guild_id)
+        if guild is not None:
+            channel = guild.get_channel(int(row["channel_id"]))
+            if channel is None:
+                try:
+                    channel = await self.bot.fetch_channel(int(row["channel_id"]))
+                except Exception as exc:  # noqa: BLE001 - unavailable channel is a typed failure
+                    log.warning(
+                        "chat: held reply channel unavailable (%s)", type(exc).__name__
+                    )
+            if channel is not None and int(
+                getattr(getattr(channel, "guild", None), "id", 0) or 0
+            ) != guild_id:
+                channel = None
+                failure = "cross_guild_destination"
+        if channel is None:
+            await self._finish_reply_approval_failure(row, guild_id, failure)
+            return await repo.get_reply_approval(int(row["id"]), guild_id=str(guild_id)) or row, 0, len(chunks)
+
+        reference = None
+        if row["reply_to_message_id"]:
+            try:
+                reference = channel.get_partial_message(int(row["reply_to_message_id"]))
+            except Exception:  # noqa: BLE001 - fall back to a plain channel send
+                reference = None
+        sent_ids: list[str] = []
+        for index, chunk in enumerate(chunks):
+            try:
+                if index == 0 and reference is not None:
+                    sent = await reference.reply(
+                        chunk,
+                        mention_author=False,
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
+                else:
+                    sent = await channel.send(
+                        chunk, allowed_mentions=discord.AllowedMentions.none()
+                    )
+            except discord.NotFound:
+                if index != 0 or reference is None:
+                    log.warning("chat: held reply delivery failed (NotFound)")
+                    break
+                try:
+                    sent = await channel.send(
+                        chunk, allowed_mentions=discord.AllowedMentions.none()
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "chat: held reply delivery failed (%s)", type(exc).__name__
+                    )
+                    break
+            except Exception as exc:  # noqa: BLE001
+                log.warning("chat: held reply delivery failed (%s)", type(exc).__name__)
+                break
+            sent_ids.append(str(sent.id))
+
+        if sent_ids:
+            try:
+                await repo.mark_reply_approval_sent(
+                    int(row["id"]),
+                    guild_id=str(guild_id),
+                    message_id=sent_ids[0],
+                    now=_now_iso(),
+                )
+            except Exception as exc:  # noqa: BLE001 - message is already public
+                log.warning(
+                    "chat: could not record held reply delivery (%s)", type(exc).__name__
+                )
+            await repo.audit(
+                actor_id=approver_id,
+                action="chat.reply_approval_sent",
+                target_type="reply_approval",
+                target_id=str(row["id"]),
+                guild_id=str(guild_id),
+                meta={
+                    "guild_id": str(guild_id),
+                    "chunks_sent": len(sent_ids),
+                    "chunks_total": len(chunks),
+                    "message_id": sent_ids[0],
+                },
+            )
+        else:
+            await self._finish_reply_approval_failure(row, guild_id, "delivery_failed")
+        refreshed = await repo.get_reply_approval(int(row["id"]), guild_id=str(guild_id))
+        return refreshed or row, len(sent_ids), len(chunks)
+
+    async def _finish_reply_approval_failure(self, row, guild_id: int, error_code: str) -> None:
+        try:
+            await self.repo.mark_reply_approval_failed(
+                int(row["id"]),
+                guild_id=str(guild_id),
+                error_code=error_code,
+                now=_now_iso(),
+            )
+        except Exception as exc:  # noqa: BLE001 - best effort record; nothing was sent
+            log.warning(
+                "chat: could not record held reply failure (%s)", type(exc).__name__
+            )
+        try:
+            await self.repo.audit(
+                actor_id="system",
+                action="chat.reply_approval_send_failed",
+                target_type="reply_approval",
+                target_id=str(row["id"]),
+                guild_id=str(guild_id),
+                meta={"guild_id": str(guild_id), "error_code": error_code},
+            )
+        except Exception:  # noqa: BLE001
+            log.warning("chat: could not audit held reply failure")
+
+    async def _audit_reply_denial(
+        self, guild_id: int, reply_id: int, reviewer_id: str, reason: str
+    ) -> None:
+        try:
+            await self.repo.audit(
+                actor_id=reviewer_id,
+                action="chat.reply_approval_denied",
+                target_type="reply_approval",
+                target_id=str(reply_id),
+                guild_id=str(guild_id),
+                meta={"guild_id": str(guild_id), "reason": reason},
+            )
+        except Exception:  # noqa: BLE001 - denial still raises to the caller
+            log.warning("chat: could not audit held reply denial")
 
     # ----------------------------------------------------------------- filters
 
@@ -666,58 +1250,65 @@ class ConversationCog(CopilotCog):
 
     # ------------------------------------------------------------- attachments
 
-    async def _prepare_attachments(self, message) -> tuple[list[bytes], str | None]:
-        """Run Discord attachments through the existing safe image pipeline.
+    async def _attachment_inputs(self, message) -> tuple[list[bytes], str | None, str | None]:
+        """Return ``(vision_images, user_note, untrusted_context_block)``.
 
-        Only images the pipeline verifies (magic bytes + re-encode, bounded size)
-        are handed to the model; anything skipped is surfaced in one short note.
-        Live interpretation quality is NOT claimed until a live vision test passes.
+        Documents are extracted and fenced as untrusted data; images reach the
+        model only when the configured provider genuinely reports vision support.
+        Earlier attachments in the same (guild, channel, user) scope are added as
+        bounded follow-up context. No raw image or document bytes are persisted.
         """
-        attachments = list(getattr(message, "attachments", ()) or ())
-        if not attachments:
-            return [], None
+        guild_id = getattr(getattr(message, "guild", None), "id", None)
+        channel_id = getattr(getattr(message, "channel", None), "id", None)
+        author = getattr(message, "author", None)
+        user_id = getattr(author, "id", None)
+        message_id = str(getattr(message, "id", "") or "")
 
-        candidates = [
-            CollectedAttachment(
-                filename=getattr(attachment, "filename", "") or "",
-                content_type=getattr(attachment, "content_type", None),
-                size=int(getattr(attachment, "size", 0) or 0),
-                url=str(getattr(attachment, "url", "") or ""),
-                message_id=str(getattr(message, "id", "")),
-                raw=attachment,
-            )
-            for attachment in attachments
-        ]
-        image_candidates = [candidate for candidate in candidates if candidate.looks_like_image()]
-        if not image_candidates:
-            return [], "_Note: I can't read that attachment type yet — only PNG/JPEG/WebP images are supported._"
+        followup = await self.attachments.followup_block(
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=user_id,
+            exclude_message_id=message_id,
+        )
+        has_attachments = bool(getattr(message, "attachments", ()) or ())
+        if not has_attachments:
+            return [], None, followup
 
-        if not self.settings.vision_enabled:
-            return [], (
-                f"_Note: {len(image_candidates)} image(s) skipped: image analysis is "
-                "disabled in configuration._"
-            )
+        vision_supported = False
+        if self.settings.vision_enabled and self._has_image_hint(message):
+            try:
+                capabilities = await self.provider.capabilities()
+                vision_supported = bool(
+                    capabilities.exists and capabilities.supports_vision
+                )
+            except Exception:  # noqa: BLE001 - an unknown provider has no vision
+                vision_supported = False
 
-        capabilities = await self.provider.capabilities()
-        if not (capabilities.exists and capabilities.supports_vision):
-            return [], (
-                f"_Note: {len(image_candidates)} image(s) skipped: the configured model "
-                "does not support vision._"
-            )
+        bundle = await self.attachments.ingest_message(
+            message,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=user_id,
+            vision_supported=vision_supported,
+        )
+        note_text = bundle.notes_text()
+        note = f"_Note: {note_text}_" if note_text else None
+        return (
+            bundle.images,
+            note,
+            join_context_blocks(bundle.context_block, followup),
+        )
 
-        try:
-            prep = await prepare_images(
-                image_candidates,
-                max_images=self.settings.max_images,
-                max_bytes=self.settings.max_image_bytes,
-            )
-        except Exception:  # noqa: BLE001 - bounded processing must never break chat
-            log.exception("chat: image preparation failed")
-            return [], "_Note: I couldn't process the attached image(s)._"
-
-        notes = list(prep.skipped) + list(prep.notes)
-        note = f"_Note: {truncate('; '.join(notes), 220)}_" if notes else None
-        return [image.data for image in prep.images], note
+    @staticmethod
+    def _has_image_hint(message) -> bool:
+        for attachment in getattr(message, "attachments", ()) or ():
+            content_type = str(getattr(attachment, "content_type", "") or "").lower()
+            filename = str(getattr(attachment, "filename", "") or "").lower()
+            if content_type.startswith("image/") or filename.endswith(
+                (".png", ".jpg", ".jpeg", ".webp")
+            ):
+                return True
+        return False
 
     # ------------------------------------------------------------------ sending
 

@@ -123,6 +123,141 @@ class ApprovalBindingError(CopilotError):
     default_message = "The action does not match the approved request."
 
 
+# ------------------------------------------------------------------- missions
+
+
+class MissionNotFoundError(CopilotError):
+    default_message = "No mission with that id was found for this server."
+
+
+class MissionConflictError(CopilotError):
+    default_message = "This mission is not in a state that allows that action."
+
+
+class MissionPlanError(CopilotError):
+    default_message = (
+        "The mission could not be planned within the allowed limits. Try a narrower goal."
+    )
+
+
+# ---------------------------------------------------------------- host agent
+
+
+class AgentRunNotFoundError(CopilotError):
+    default_message = "No agent run with that id was found for this server."
+
+
+class AgentRunConflictError(CopilotError):
+    default_message = "This agent run is not in a state that allows that action."
+
+
+class AgentPlanError(CopilotError):
+    default_message = (
+        "The request could not be planned within the allowed limits or no required "
+        "capability is available. Try a narrower goal."
+    )
+
+
+# --------------------------------------------------------------- attachments
+
+
+class AttachmentUnsupportedError(CopilotError):
+    default_message = (
+        "That attachment format is not supported. Supported formats are images, PDF, "
+        "plain text, common source code, and log files."
+    )
+
+
+# ---------------------------------------------------------------- moderation
+
+
+class ModerationPolicyError(CopilotError):
+    default_message = "The moderation policy input is invalid. Check the values and try again."
+
+
+class ModerationIncidentNotFoundError(CopilotError):
+    default_message = "No moderation incident with that id was found for this server."
+
+
+class ModerationIncidentConflictError(CopilotError):
+    default_message = "This moderation incident was already reviewed. Nothing was changed."
+
+
+# ---------------------------------------------------------------- scheduling
+
+
+class ScheduledJobNotFoundError(CopilotError):
+    default_message = "No scheduled job with that id was found for this server."
+
+
+class ScheduledJobConflictError(CopilotError):
+    default_message = "This scheduled job is not in a state that allows that action."
+
+
+class ScheduleError(CopilotError):
+    default_message = "The schedule input is invalid. Check the time and timezone and try again."
+
+
+# ----------------------------------------------------------- reply approvals
+
+
+class ReplyApprovalNotFoundError(CopilotError):
+    default_message = "No reply approval with that id was found for this server."
+
+
+class ReplyApprovalConflictError(CopilotError):
+    default_message = "This reply approval is not in a state that allows that action."
+
+
+
+# ------------------------------------------------------------------- research
+
+
+class ResearchUnavailableError(CopilotError):
+    default_message = (
+        "Web research is not available on this bot right now. "
+        "No sources were invented; ask the operator to configure a search provider."
+    )
+
+
+class ResearchProviderError(CopilotError):
+    default_message = (
+        "The web search provider returned an error. The research request stopped; "
+        "nothing was saved as a verified source."
+    )
+
+
+class ResearchNoResultsError(CopilotError):
+    default_message = "Web search returned no usable results for that query."
+
+
+class ResearchReportNotFoundError(CopilotError):
+    default_message = "No research report with that id was found for this server."
+
+
+# ------------------------------------------------------------- content planning
+
+
+class EventPlanNotFoundError(CopilotError):
+    default_message = "No event plan with that id was found for this server."
+
+
+class CalendarEntryNotFoundError(CopilotError):
+    default_message = "No calendar entry with that id was found for this server."
+
+
+class ContextualReplyNotFoundError(CopilotError):
+    default_message = "No reply draft with that id was found for this server."
+
+
+class ContentPlanError(CopilotError):
+    default_message = "The calendar or event plan input is invalid. Check the details and try again."
+
+
+class AgentEvalError(CopilotError):
+    default_message = "The offline evaluation could not be completed. Nothing was changed."
+
+
 # ---------------------------------------------------------------- content studio
 
 

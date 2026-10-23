@@ -402,6 +402,7 @@ async def propose_candidate(
         action="knowledge.candidate.proposed",
         target_type="solution",
         target_id=str(candidate_id),
+        guild_id=_guild(actor),
         meta={
             "guild_id": _guild(actor),
             "thread_row_id": int(thread_row_id),
@@ -501,6 +502,7 @@ async def review_candidate(
         action=f"knowledge.candidate.{decision}d",
         target_type="solution",
         target_id=str(candidate_id),
+        guild_id=_guild(actor),
         meta={"guild_id": _guild(actor)},
     )
     return await _load_candidate_view(repo, int(candidate_id), guild_id=_guild(actor))

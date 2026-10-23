@@ -20,6 +20,7 @@ from ..errors import (
     ProviderError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    ResearchUnavailableError,
 )
 from ..ui.checks import channel_allowed, guild_allowed
 from .contract import Skill, SkillContext, SkillResult, SkillStatus, TaskRequest
@@ -81,7 +82,7 @@ class SkillOrchestrator:
         except asyncio.CancelledError:
             # Cancellation belongs to the caller/queue; never swallow it.
             raise
-        except ProviderUnavailableError as exc:
+        except (ProviderUnavailableError, ResearchUnavailableError) as exc:
             log.warning("Skill provider unavailable (skill=%s)", skill.skill_id)
             return self._failure(SkillStatus.provider_unavailable, request.skill_id, exc.user_message())
         except ModelNotInstalledError as exc:

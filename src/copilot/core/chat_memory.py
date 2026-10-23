@@ -35,6 +35,16 @@ class ClearResult:
     persistent: bool  # whether a persistent store was available at all
 
 
+@dataclass(frozen=True)
+class MemoryStats:
+    """What one scope actually holds — counts and timestamp bounds, never text."""
+
+    turns: int
+    oldest: str | None
+    newest: str | None
+    source: str  # "database" or "in-memory fallback (database unavailable)"
+
+
 class ChatMemory:
     """Durable conversation turns (database first) with an in-memory fallback."""
 
@@ -106,6 +116,36 @@ class ChatMemory:
                 )
         self._fallback.append(key, user_text, assistant_text)
         return persisted
+
+    async def stats(self, key: ScopeKey) -> MemoryStats:
+        """Evidence view for one scope: counts and bounds only, never content."""
+        params = self._params(key)
+        if params is not None:
+            try:
+                row = await self._repo.conversation_turn_stats(
+                    guild_id=params[0],
+                    channel_id=params[1],
+                    user_id=params[2],
+                )
+            except DatabaseError as exc:
+                log.warning(
+                    "chat: persistent memory stats unavailable (%s); reporting fallback only",
+                    type(exc).__name__,
+                )
+            else:
+                if row is not None:
+                    return MemoryStats(
+                        turns=int(row["turns"]),
+                        oldest=None if row["oldest"] is None else str(row["oldest"]),
+                        newest=None if row["newest"] is None else str(row["newest"]),
+                        source="database",
+                    )
+        return MemoryStats(
+            turns=len(self._fallback.history(key)),
+            oldest=None,
+            newest=None,
+            source="in-memory fallback",
+        )
 
     # ------------------------------------------------------------ clear path
 

@@ -6,7 +6,7 @@ from copilot.llm.persona import EMPTY_REPLY, HELP_REPLY, PERSONA_VERSION, REPLY_
 
 
 def test_persona_version_is_pinned():
-    assert PERSONA_VERSION == "chat-v2"
+    assert PERSONA_VERSION == "chat-v3"
 
 
 def test_system_persona_declares_untrusted_data_rules():

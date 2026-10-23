@@ -368,3 +368,109 @@ informal until a release tag exists.
   suite: **574 passed, 2 skipped, 1 warning**; `ruff check --no-cache src tests scripts` clean.
   No real database, Discord connection or Ollama process was used.
 - Deferred deliberately: web research, multimodal features, scheduling, dashboard, Phase 4.
+
+### Program Phase 3.2–3.7 — missions, research, radar, evaluation, planning (2026-10-23)
+- Added migration 8 (additive only): `missions`, `mission_steps`, `research_reports`,
+  `event_plans`, `content_calendar_entries`, `contextual_replies`, `agent_eval_runs`, two
+  `content_drafts` provenance columns (`source_kind`, `source_ref`) and `audit_log.guild_id`
+  plus indexes. Every new table is guild-scoped; existing rows and FTS data are untouched.
+- Mission Orchestrator (`missions/`): deterministic 2–3-step plans per mode over registered
+  read-only skills (community: pulse → insights → KB search; research: web research → KB search;
+  draft_prep: KB search → pulse [+ web research]); bounded by `MISSION_MAX_STEPS`,
+  `MISSION_STEP_TIMEOUT_S`, `MISSION_MAX_RESULT_CHARS`; per-step persistence with evidence
+  references, live progress, unique per-guild idempotency key, cooperative cancellation,
+  audit trace, and startup recovery that closes interrupted runs as `failed`/`interrupted`.
+  Added `/mission`, `/missions`, `/mission-view`, `/mission-cancel`, `/mission-control` and
+  `ui/missions.py` embeds. Missions never publish, schedule or execute external actions.
+- Web research (`research/`): Brave/Tavily **search-API-only** provider (no page fetching),
+  bounded results/text/timeout, `safe_source_url` rejecting non-http(s), credentials and
+  localhost/private/link-local hosts, URL-stripped model synthesis with citations drawn only
+  from provider results, extractive fallback, and persisted `unavailable`/`failed` states.
+  Added `/research` and `/research-draft` with stored provenance
+  (`source_kind='research'`, `source_ref='research:<id>'`) into Content Studio; the draft path
+  cannot submit, approve or publish. Added read-only `research.web` skill. Off by default.
+- Problem Radar (`core/problem_radar.py`, `/radar`): deterministic read model over Community
+  Pulse with recurring question/error/open-thread evidence, approved-knowledge gaps,
+  count-derived low/medium/high confidence, explicit uncertainty and recommended human action;
+  guild-scoped and minimum-data gated; no member profiling or causal claims.
+- Offline agent evaluation (`core/evaluation.py`, `/evaluate`, `/evaluation-latest`,
+  dev-gated): registry contract, invalid input, unknown skill, permission, guild/channel scope,
+  redaction, image validation, migration, approval binding and temporary-database isolation
+  checks. Any failed check fails the persisted guild-scoped report; the report explicitly
+  states `offline_only=True` and `model_quality_evaluated=False`. No Discord, Ollama or search
+  provider is contacted.
+- Content planning (`core/content_planning.py`, `/calendar*`, `/event-plan*`, `/reply-*`):
+  informational calendar rows, deterministic event-plan templates and one-call bounded reply
+  drafts with mentions neutralized; nothing is sent, scheduled or created in Discord. One-way
+  conditional transitions (`draft→archived`, `planned→cancelled`, `draft→dismissed`) and
+  human `decide` actor checks.
+- Bug fixes found by the new tests: startup recovery no longer opens a nested transaction
+  (`cannot start a transaction within a transaction`), and calendar/event-plan transitions are
+  now conditional on their source state, so a repeated command fails safely instead of
+  silently succeeding.
+- Added `/conversation-status`: a private memory evidence view for the caller's own
+  `(guild, channel, user)` scope. It shows stored turn count, oldest/newest timestamps, whether
+  the source is SQLite or the in-memory fallback, retention/row bounds and grounding state —
+  **never message text** — with the same guild/channel allowlist checks as clearing.
+- Docs/readiness: README commands and skill list, PLAN phase tracker/decisions D30–D34/test
+  log, ARCHITECTURE module map + flows, CONFIGURATION and `.env.example` settings, SECURITY
+  controls, TESTING suite map, and a new [`E2E_TEST_RUNBOOK.md`](E2E_TEST_RUNBOOK.md) listing
+  every deferred live check.
+- Tests: 62 new deterministic tests across `test_missions.py`, `test_research.py`,
+  `test_problem_radar.py`, `test_content_planning.py`, `test_evaluation.py` and
+  `test_ui_surfaces.py`, plus 6 for the memory status view (`test_chat_memory.py`,
+  `test_cogs_conversation.py`, `test_ui_surfaces.py`). Full suite: **642 passed, 2 skipped,
+  4 warnings in 31.10s** (skips = opt-in live-Ollama; warnings = discord.py deprecation);
+  `ruff check .` clean; all relative doc links resolve.
+- **Live E2E: NOT RUN.** No bot login, command sync, real Discord command execution, real
+  Brave/Tavily call, or real-database migration was performed. `CONTENT_PUBLISHING_ENABLED`
+  remains `false`; research remains disabled until an operator configures a provider.
+- Deferred deliberately: model-selected tool loops, page-content fetching, scheduling,
+  publishing changes, and model-quality evaluation.
+
+### Gap closure — host agent, multimodal, moderation, voice, scheduler (2026-10-23)
+- Added migration 9 (additive only): `attachments`, `guild_voice_profiles`, `content_feedback`,
+  `moderation_policies`, `moderation_incidents`, `moderation_warnings`, `agent_runs`,
+  `agent_run_steps`, `scheduled_jobs`, `reply_approvals` plus indexes. Existing tables, rows
+  and the FTS index are untouched; a v2 database upgrades in place.
+- Main Host Agent (`agents/host.py`, `agents/roles.py`, `cogs/agents.py`, `ui/agents.py`):
+  goal classification → bounded dependency-aware plan over registered read-only skills →
+  dependency events + `asyncio.Semaphore` bounded parallelism → `$upstream` output passing →
+  synthesis → truthful `completed`/`partial`/`failed`/`cancelled` status. Added the eight
+  specialist roles, `/agent`, `/agent-runs`, `/agent-view`, `/agent-cancel`, `/agent-control`,
+  guild-scoped reads, moderator gating, idempotent creation and startup recovery. A failure-path
+  bug that left failed steps persisted as `running` (making runs look successful) was found and
+  fixed.
+- Multimodal ingestion (`core/attachments.py`): multiple images/screenshots, pasted text/code/
+  terminal logs/stack traces, bounded PDF/DOCX extraction, magic-byte format detection,
+  size/page/pixel/decompression caps, safe re-encode, unsupported-format notices, follow-up
+  references to earlier attachments, bounded guild/conversation retention, and evidence-aware
+  answers. Code and commands are never executed.
+- AI moderation (`core/moderation_ai.py`, `cogs/automod.py`): guild-scoped policy evaluation over
+  context, severity/confidence thresholds, policy- and permission-gated deletion, ambiguous-case
+  flagging, minimal warnings/incidents, private moderator-channel reports, human review/override,
+  retry idempotency, privacy-safe guild-scoped audit, and no auto-ban/kick/timeout.
+- Community voice and approval coverage (`core/content_voice.py`, Content Studio): guild voice
+  profile, approved-history context, moderator feedback reuse, exact content hashes plus
+  word-shingle near-duplicate/repetition checks; history and feedback stay untrusted data.
+  Added configurable exact-version approval for the chat reply path
+  (`REPLY_APPROVAL_ENABLED`, default off) with editing invalidating prior approval.
+- Approved-only retrieval and audit corrections: `/kb-search` and every user-facing retrieval
+  path now default to `approved_only=True`; review workflows request unapproved rows explicitly.
+  Fixed audit calls that omitted guild scope (`/clear-conversation`, `/forget`,
+  `/correct-status`, approval denial) and reviewed audit fields for privacy.
+- Durable scheduler (`core/scheduler.py`, `cogs/scheduler.py`, `ui/scheduler.py`): SQLite jobs
+  with atomic claim, capped exponential backoff, restart recovery, guild ownership, idempotency,
+  cancellation and UTC storage. Commands: `/schedule-agent`, `/schedule-digest`,
+  `/schedule-draft`, `/calendar-schedule`, `/scheduled-jobs`, `/schedule-cancel`. Only read-only
+  analysis and approval-gated drafts can run; there is no publish job kind. Calendar entries
+  alone schedule nothing, show linked jobs, and cancellation cascades to the linked job.
+  IANA timezones need `tzdata` (absent on this Windows host); UTC and explicit offsets work and
+  an unavailable zone produces a clear error.
+- Offline evaluation extended with role-roster, dependency-aware planning, provider-honesty,
+  agent-run dependency/idempotency/isolation, and scheduler kind/idempotency/recovery checks.
+  `MIN_SCHEMA_VERSION` is 9.
+- Docs: ARCHITECTURE invariants/module map/flows, CONFIGURATION sections, `.env.example`
+  settings, TESTING suite map.
+- **Live E2E: NOT RUN.** No bot login, command sync, live Discord/provider call, real database
+  migration or publication was performed. `CONTENT_PUBLISHING_ENABLED` remains `false`.

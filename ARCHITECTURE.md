@@ -12,6 +12,13 @@
 8. **Approval is an explicit stored state**: only `kb_docs.approved=1` documents are eligible for chat grounding. Auto-indexed thread fingerprints (`approved=0`) are display-only related history, never approved knowledge.
 9. **Agent skills are application code, not model tools**: Phase 1 registers only typed, read-only skills behind an explicit registry. The deterministic orchestrator checks guild/channel scope and declared permissions before execution, enforces per-skill time/output bounds, and returns structured safe errors. The model never chooses or invokes a skill, and no public-action capability is registered.
 10. **Privileged actions are backend approval state**: Phase 2A stores a request's guild, action, target, content version and SHA-256 hash (never the content), plus requester and expiry. Only a trusted human actor with the `decide` permission can approve/reject, self-approval is refused, and every transition is conditional. Phase 2B adds one concrete executor, Discord content publishing: it must claim the exact approved target/version by revalidating human authority, state, expiry and binding immediately before one adapter send; claims are unique per request and idempotency key, and all transitions are audited. There is still no generic executor command or model tool.
+11. **Missions are fixed, read-only plans**: a mission mode maps to a deterministic ordered list of existing skills. The model never selects a mode, step, skill or target; every mission is human-started, moderator-gated, guild-scoped, bounded by step count/time/output caps, cancellable between steps, and audited. A restart closes interrupted missions as `failed`/`interrupted` rather than leaving them `running`.
+12. **Research citations come only from provider results**: web research performs search-API queries only (no page fetch), validates every URL as public http(s) without credentials, and strips model-produced URLs before display. Disabled, unconfigured or failing research is reported as `unavailable`/`failed`, never as fabricated evidence.
+13. **Draft-only planning surfaces**: event plans, calendar entries and reply drafts never send, schedule or post anything. They are guild-scoped, moderator-only, persisted for review, and transition one-way under conditional updates.
+14. **Evaluation is offline and honest about scope**: `/evaluate` runs deterministic contract/safety/isolation/regression checks on temporary databases only, never contacts Discord/Ollama/search providers, and its report explicitly states that model quality was not evaluated.
+15. **The host agent plans, it does not act**: `/agent` turns a goal into a bounded dependency graph over registered read-only skills. Independent steps run under `AGENT_MAX_PARALLEL`, dependents receive upstream outputs, and partial failures are reported step-by-step. The host cannot select an unregistered skill, publish, approve or moderate; cancellation is cooperative and a restart closes interrupted runs honestly.
+16. **Attachments and extracted text are untrusted evidence**: format is decided by magic bytes, not by filename or MIME hint. Files are bounded by count/size/pages/pixels and re-encoded or extracted safely; the bot never executes code or commands from attachments, never stores whole images/documents, and answers distinguish observations from inferences.
+17. **Scheduled means durable and non-publishing**: scheduler jobs live in SQLite, are claimed atomically, retried with backoff and recovered after restart. The only job kinds are a read-only agent run, a read-only digest and an approval-gated Content Studio draft. There is no scheduled-publishing kind, and enabling the scheduler never bypasses the approval state machine.
 
 ## Module map
 
@@ -31,15 +38,36 @@ src/copilot/
     moderation.py           /resolve, /approve-solution, /reject-solution, /correct-status
     insights.py             /insights    — threshold-gated aggregates
     debug.py                /debug       — error/stack-trace explainer (dev IDs only)
-    conversation.py         @mention chat listener + /clear-conversation (non-privileged events)
+    conversation.py         @mention chat listener + /conversation-status + /clear-conversation
+                            (non-privileged events; status shows counts, never content)
     content.py              /content-* Content Studio + approval inbox and buttons (moderators)
     pulse.py                /pulse, /pulse-draft (moderators; draft only, no publishing)
-  agents/                   Phase 1 read-only skill foundation (no model tools):
+    missions.py             /mission, /missions, /mission-view, /mission-cancel, /mission-control
+    research.py             /research, /research-draft (moderators; provider off by default)
+    radar.py                /radar (moderator; evidence-backed read model)
+    evaluation.py           /evaluate, /evaluation-latest (configured devs; offline only)
+    planning.py             /calendar*, /event-plan*, /reply-* (moderators; inert drafts only)
+    agents.py               /agent*, /agent-control (moderators; read-only host plans + cancel)
+    automod.py              AI moderation listener, policy commands, human review modal
+    scheduler.py            /schedule-*, /scheduled-jobs, /schedule-cancel, /calendar-schedule
+  missions/                 fixed read-only multi-step plans:
+    planner.py              mode → deterministic ordered steps over registered skill IDs
+    service.py              persistence, progress, cancellation, timeouts, recovery, audit, views
+    models.py               plan/step/result Pydantic models and status enums
+  research/                 web research (search-API only):
+    provider.py             Brave/Tavily search clients, bounded results, URL safety, no page fetch
+    service.py              query → search → bounded synthesis (URL-stripped) or extractive fallback,
+                            persisted report + audit + Content Studio provenance
+  agents/                   read-only skill foundation (no model tools):
     contract.py             typed Skill contract, Pydantic request/input/output, limits, permissions
     registry.py             explicit IDs; rejects duplicates, arbitrary callables, non-read-only skills
     orchestrator.py         guild/channel auth, permission check, timeout/output bounds, safe errors
     builtin.py              kb.search, insights.community, pulse.community,
-                            knowledge.candidates (all read-only; moderator-gated where needed)
+                            knowledge.candidates, research.web (all read-only; gated per skill)
+    roles.py                eight specialist roles: declarative capabilities, skills,
+                            permissions and human-approval requirements
+    host.py                 goal → bounded dependency-aware plan, bounded-parallel execution,
+                            upstream output passing, cancellation, recovery, guild-scoped views
   core/                     Discord-agnostic logic:
     collector.py            thread fetch with hard caps + skip accounting
     queue.py                sequential worker, capacity, cooldown, guild cap, cancel, timeout
@@ -56,6 +84,13 @@ src/copilot/
     images.py               attachment validation + safe re-encode
     conversation.py         chat trigger policy + bounded context store
     chat_memory.py          durable chat turns (SQLite, scoped) with in-memory fallback
+    problem_radar.py        deterministic read-only projection over Community Pulse
+    content_planning.py     event plans, informational calendar and reply drafts (never sent)
+    attachments.py          magic-byte validation, bounded PDF/DOCX/text extraction, retention scope
+    moderation_ai.py        guild policy, context classification, incidents, review, retry idempotency
+    content_voice.py        guild voice profile, approved history, feedback reuse, near-duplicate checks
+    scheduler.py            durable SQLite jobs: atomic claim, backoff retry, restart recovery, no publish
+    evaluation.py           offline contract/safety/isolation/regression checks + persisted report
   llm/
     base.py                 LLMProvider protocol + dataclasses
     ollama_provider.py      AsyncClient wrapper: timeouts, keep_alive, JSON mode fallback
@@ -72,6 +107,9 @@ src/copilot/
     embeds.py               embed builders with Discord length limits enforced
     checks.py               guild/channel + target-thread + moderator logic (pure functions)
     content.py              Discord target/permission checks, send, nonce-based reconciliation
+    missions.py             mission progress/result/control embeds; empty/unavailable states
+    agents.py               host run/list/control embeds with step status and evidence
+    scheduler.py            scheduled-job embeds; always states that nothing posts or publishes
   util/
     logging.py              redacting formatter + secret registry
     text.py                 sanitize/truncate/fence helpers
@@ -195,6 +233,173 @@ indefinitely — see [AUDIT.md](AUDIT.md). Automatic thread expiry still preserv
 full-thread path. A solution-backed document purge leaves the solution row as historical
 evidence, so re-publishing requires a new candidate.
 
+## Mission orchestration (program Phase 3.2)
+
+```
+moderator /mission <mode> <goal>
+  → allowlist + moderator gate; goal ≥ 3 chars and ≤ MISSION_MAX_GOAL_CHARS
+  → planner: fixed skill sequence for the mode, filtered by registered skills,
+    capped at MISSION_MAX_STEPS (community: pulse → insights → kb.search;
+    research: research.web → kb.search; draft_prep: kb.search → pulse [+ research.web])
+  → persist mission + steps (idempotency key unique per guild) → run one step at a time
+  → each step: orchestrator auth/limits → output validated → step persisted with references
+  → live progress edits (bounded) + audit trace + truthful terminal status
+moderator /mission-cancel → cooperative cancel flag; step boundary stops the run
+startup → non-terminal missions become failed/interrupted, unfinished steps cancelled
+```
+
+Failure stops the mission at the failed step (remaining steps marked cancelled); the
+summary reports honest completed/total counts and a terminal status. `/mission-view` and
+`/mission-control` read guild-scoped rows only; no mission step writes, publishes, schedules
+or executes anything outside the read-only skills.
+
+## Web research (program Phase 3.3)
+
+```
+moderator /research <query>
+  → enabled + provider + key configured? no → persisted `unavailable` report, no search
+  → provider.search (Brave/Tavily; timeout; ≤ WEB_SEARCH_MAX_RESULTS; no page fetch)
+  → validate/dedupe results; safe_source_url rejects non-public or credential URLs
+  → bounded synthesis prompt over provider titles/snippets (untrusted, fenced)
+  → strip URLs from model output → citations only from provider results
+  → synthesis failure → extractive report from provider results
+  → persist report + audit (no query text in audit) → render ≤ RESEARCH_MAX_SOURCES links
+moderator /research-draft <report id> <channel>
+  → completed + guild-owned report → ContentStudio.create_draft(source_kind='research')
+  → audit research.draft_created; never submit/approve/publish
+```
+
+## Problem Radar (program Phase 3.4)
+
+```
+moderator /radar
+  → Community Pulse minimum-data gate (insufficient → explicit state, no invented data)
+  → guild-scoped summaries/KB rows only
+  → observations: recurring questions, recurring error signatures, open threads, KB gaps
+  → confidence low/medium/high from evidence counts + explicit uncertainty
+  → recommended human action per item; rendered as evidence, never as a verdict
+```
+
+## Offline agent evaluation (program Phase 3.5)
+
+```
+configured dev /evaluate
+  → temporary SQLite database only (never the runtime DB)
+  → registry contract, invalid input, unknown skill, permission,
+    guild/channel scope, redaction, image validation, migration,
+    approval binding, database isolation checks
+  → role roster, bounded dependency-aware planning, provider-availability honesty,
+    agent-run dependency/idempotency/isolation
+  → scheduler kinds (no publishing), idempotency, restart recovery, cancellation, guild scope
+  → any failed check fails the report; report persisted guild-scoped + audit
+  → explicit flags: offline_only=True, model_quality_evaluated=False
+/evaluation-latest → last stored report for the guild
+```
+
+No Discord, Ollama or search-provider call is made by evaluation. A passing report means
+the contracts and isolation behaved, not that model answers are good.
+
+## Content planning (program Phase 3.6)
+
+```
+/calendar-add → guild-scoped informational row (kind, start, optional links to a draft or plan)
+/calendar-schedule → link the entry to a durable job (read-only agent run or approval-gated draft)
+                     only; the entry itself still schedules nothing
+/calendar-cancel → conditional planned → cancelled; also cancels a linked job
+/event-plan → deterministic template JSON from title/brief/schedule (creates nothing in Discord)
+/event-plan-archive → conditional draft → archived
+/reply-draft → one bounded model call over a pasted excerpt; mentions neutralized;
+               persisted as a draft, never sent
+/reply-dismiss → conditional draft → dismissed
+```
+
+## Host agent flow (gap closure)
+
+```
+moderator /agent <goal>
+  → allowlist + moderator gate; goal cleaned, control tokens stripped, length-bounded
+  → HostPlanner: classify goal → mode plan over registered read-only skills only
+    (community: pulse → insights → kb.search; research: kb.search [+ research.web];
+     draft_prep: kb.search → pulse [+ research.web]; moderation/triage: knowledge checks)
+  → validate plan: unique increasing indices, backward-only dependencies, read-only skills
+  → persist run + steps (idempotency key unique per guild) → audit
+  → executor: ready steps (all dependencies succeeded) run under AGENT_MAX_PARALLEL;
+    each step goes through SkillOrchestrator scope/permission/limits checks
+  → dependent steps get upstream outputs via the $upstream input key
+  → final synthesis step combines results, notes conflicts and unavailable specialists
+  → status completed / partial / failed / cancelled; every step keeps its own error
+/agent-cancel → cancel flag + event; terminal runs are never restarted
+startup → non-terminal agent runs close as failed/interrupted
+```
+
+Provider availability is reported, never simulated: if `research.web` is not registered, the
+plan says the Web Researcher is unavailable instead of inventing sources. No step publishes,
+approves, deletes, warns, times out or bans.
+
+## Attachment flow (gap closure)
+
+```
+message with attachments → count/size caps → per-file magic-byte format detection
+  → image: decode → pixel/decompression guard → Pillow re-encode (metadata stripped)
+  → PDF/DOCX/text/log/code: bounded extraction (pages/chars), unsupported → explicit notice
+  → extracted text is fenced as untrusted data and included only in the current prompt
+  → bounded metadata/extracted text persisted per guild/conversation for retention, then swept
+follow-up message → recent turns may reference earlier attachments (ATTACHMENT_FOLLOWUP_TURNS)
+```
+
+The model answers distinguish observed evidence, inferred causes and open uncertainty, and may
+suggest safe verification steps. It never executes user code or commands and never claims an
+attachment was run.
+
+## AI moderation flow (gap closure)
+
+```
+message event → moderation enabled? guild policy enabled? → classification call (context, bounded)
+  → category + severity + confidence vs policy thresholds
+  → high-confidence + policy-enabled deletion + bot permission → delete → incident + warning
+  → ambiguous/low-confidence → flag only, no deletion
+  → private moderator-channel report (message link, category, confidence, severity, action,
+    repeat count, recommended next step)
+  → moderator review/override via modal; every transition audited without message text
+retries → idempotent: no duplicate deletion, warning or report
+```
+
+No auto-ban, kick or timeout exists. Identity is never treated as evidence of guilt, and every
+lookup is guild-scoped.
+
+## Content voice and approval coverage (gap closure)
+
+```
+/content-create|edit → guild voice profile + approved history + recent moderator feedback
+  → exact content hash + near-duplicate (word-shingle Jaccard) check over recent approved work
+  → history/feedback are untrusted data, fenced separately from system instructions
+  → generated draft still goes through submit → different-human approval → publish gate
+chat reply path → REPLY_APPROVAL_ENABLED=true → store exact text+channel approval, do not send
+  → different human moderator approves → exact bound reply may be delivered
+```
+
+Editing a draft creates a new immutable version and invalidates any earlier approval. There is no
+bypass flag and no model-visible switch.
+
+## Durable scheduler flow (gap closure)
+
+```
+/schedule-agent|digest|draft|calendar-schedule
+  → guild scope + moderator/approval-propose gate; future UTC-normalized run_at
+  → idempotency key unique per guild (repeat returns the existing job)
+  → persist job row (kind, payload, timezone, attempts, max_attempts) + audit
+scheduler tick → due pending jobs → atomic claim (conditional pending→running)
+  → dispatch: only agent.run (read-only), digest.collect (read-only), content.draft (draft only)
+  → guild allowlist rechecked; timeout bounded
+  → success → succeeded + audit (result reference only)
+  → failure → backoff retry up to SCHEDULER_MAX_ATTEMPTS → failed (permanent errors skip retry)
+restart → running jobs return to pending and run again
+/calendar-cancel → cancels the linked job; /schedule-cancel → cancels one job
+```
+
+There is no publishing, sending, event-creation or moderation job kind. Draft jobs still require
+explicit human approval and `CONTENT_PUBLISHING_ENABLED=true` before anything is sent.
+
 ## Runtime data flow (`/summarize`)
 
 ```
@@ -225,11 +430,13 @@ message mentioning the bot → allowlist check → trigger policy (mention / res
 ```
 
 Chat turns persist across restarts (migration 3, `conversation_turns`), strictly scoped per
-guild/channel/user; `/clear-conversation` deletes the caller's own turns in one channel. Reads
-always prefer the database, so retention sweeps and clears can never be resurrected by the
-in-memory fallback; a database failure degrades chat to in-process context only (logged). A
-reply to the bot that Discord does not expose as readable text gets a rate-limited "mention me"
-hint instead of a guess.
+guild/channel/user; `/conversation-status` shows that scope's turn count and timestamp bounds
+(never text, with the same guild/channel checks); `/clear-conversation` deletes the caller's own
+turns in one channel. Reads always prefer the database, so retention sweeps and clears can never
+be resurrected by the in-memory fallback; a database failure degrades chat to in-process context
+only (logged), and the status view states when only fallback memory exists. A reply to the bot
+that Discord does not expose as readable text gets a rate-limited "mention me" hint instead of a
+guess.
 
 Delivery is honest: the exchange is persisted before sending; sending stops at the first failed
 chunk (no duplicate continuations, no half-mangled replies); each failure is logged once with its
@@ -293,7 +500,9 @@ class SkillOrchestrator:   # agents/orchestrator.py
   Chat exchanges are written in one transaction (insert pair + per-scope prune); reads use the
   scope index and are bounded (prompt limit × 2 rows). No DB transaction is ever held across a
   model or Discord await.
-- Timeouts: per fetch (`FETCH_TIMEOUT_S`), per model call (`OLLAMA_REQUEST_TIMEOUT_S`), per job (`JOB_TIMEOUT_S`).
+- Timeouts: per fetch (`FETCH_TIMEOUT_S`), per model call (`OLLAMA_REQUEST_TIMEOUT_S`), per job
+  (`JOB_TIMEOUT_S`), per mission step (`MISSION_STEP_TIMEOUT_S`), per web search
+  (`WEB_SEARCH_TIMEOUT_S`).
 
 ## Why these choices (trade-offs)
 
@@ -314,3 +523,6 @@ class SkillOrchestrator:   # agents/orchestrator.py
 - Per-guild settings table (currently `.env` allowlists).
 - Phase 2B content executor is the reference pattern for any future approved action: resolve the target immediately before claiming, recheck the human actor's current authority, claim the exact binding, perform one adapter call, and reconcile ambiguous outcomes by evidence only. There is deliberately no generic executor.
 - Future read-only or explicitly approval-gated skills, each with its own auth/data tests.
+- Additional search providers behind the `research/provider.py` search-only interface (same URL
+  validation and citation rules), and new mission modes as fixed plans over registered skills —
+  never model-selected tool loops.

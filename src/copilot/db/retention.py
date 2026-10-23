@@ -113,3 +113,49 @@ async def sweep_conversation_turns(db: Database, *, days: int, now: datetime | N
     """
     cutoff = iso((now or utc_now()) - timedelta(days=max(1, int(days))))
     return await db.execute("DELETE FROM conversation_turns WHERE created_at < ?", (cutoff,))
+
+
+async def sweep_missions(db: Database, *, days: int, now: datetime | None = None) -> int:
+    """Delete terminal missions (steps cascade) older than ``days``.
+
+    Non-terminal missions are never touched by retention: they are either
+    running or will be closed once by startup recovery.
+    """
+    cutoff = iso((now or utc_now()) - timedelta(days=max(1, int(days))))
+    return await db.execute(
+        "DELETE FROM missions WHERE status IN ('completed','failed','cancelled') "
+        "AND finished_at IS NOT NULL AND finished_at < ?",
+        (cutoff,),
+    )
+
+
+async def sweep_research_reports(db: Database, *, days: int, now: datetime | None = None) -> int:
+    cutoff = iso((now or utc_now()) - timedelta(days=max(1, int(days))))
+    return await db.execute("DELETE FROM research_reports WHERE created_at < ?", (cutoff,))
+
+
+async def sweep_agent_eval_runs(db: Database, *, days: int, now: datetime | None = None) -> int:
+    cutoff = iso((now or utc_now()) - timedelta(days=max(1, int(days))))
+    return await db.execute("DELETE FROM agent_eval_runs WHERE created_at < ?", (cutoff,))
+
+
+async def sweep_content_planning(db: Database, *, days: int, now: datetime | None = None) -> int:
+    """Remove archived event plans and cancelled/done calendar rows past ``days``.
+
+    Active drafts, planned entries and contextual reply drafts stay until a
+    moderator dismisses them: they are visible to humans, not background noise.
+    """
+    cutoff = iso((now or utc_now()) - timedelta(days=max(1, int(days))))
+    removed = await db.execute(
+        "DELETE FROM event_plans WHERE state = 'archived' AND updated_at < ?", (cutoff,)
+    )
+    removed += await db.execute(
+        "DELETE FROM content_calendar_entries WHERE state IN ('cancelled','done') "
+        "AND updated_at < ?",
+        (cutoff,),
+    )
+    removed += await db.execute(
+        "DELETE FROM contextual_replies WHERE state = 'dismissed' AND created_at < ?",
+        (cutoff,),
+    )
+    return removed

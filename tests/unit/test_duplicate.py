@@ -15,6 +15,7 @@ async def _seed_docs(repo):
         title="Enable WAL",
         body="sqlite database locked fix: enable WAL mode",
         url=None,
+        approved=True,
     )
     await repo.insert_kb_doc(
         kind="solution",
@@ -23,6 +24,7 @@ async def _seed_docs(repo):
         title="Retry writes",
         body="database locked errors go away when writes are retried with backoff",
         url=None,
+        approved=True,
     )
     await repo.insert_kb_doc(
         kind="solution",
@@ -31,6 +33,7 @@ async def _seed_docs(repo):
         title="Unrelated theming",
         body="css color variables for dark mode",
         url=None,
+        approved=True,
     )
 
 
@@ -66,6 +69,7 @@ async def test_find_related_respects_limit(tmp_db):
             title=f"Doc {index}",
             body="database locked workaround",
             url=None,
+            approved=True,
         )
     assert len(await find_related(repo, "database locked", guild_id="500", limit=2)) == 2
 
@@ -85,6 +89,7 @@ async def test_find_related_excludes_the_source_thread(tmp_db):
         title="Database locked on write",
         body="database locked when writing from two processes",
         url=None,
+        approved=True,
     )
     related = await find_related(
         repo, "database locked", guild_id="500", exclude_discord_thread_id="777"

@@ -102,7 +102,7 @@ async def test_correction_writes_status_corrected_audit_entry(tmp_path, tmp_db):
     assert audits[0]["actor_id"] == "7"
     assert audits[0]["target_type"] == "thread"
     assert audits[0]["target_id"] == str(thread.id)
-    assert json.loads(audits[0]["meta_json"]) == {"status": "resolved"}
+    assert json.loads(audits[0]["meta_json"]) == {"status": "resolved", "guild_id": "500"}
     assert audits[0]["created_at"]
 
 

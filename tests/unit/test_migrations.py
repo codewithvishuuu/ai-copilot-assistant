@@ -1,12 +1,15 @@
-"""Schema migrations: v2 -> v7 upgrade keeps all data; fresh init; integrity.
+"""Schema migrations: v2 -> v9 upgrade keeps all data; fresh init; integrity.
 
 Migrations 3 through 6 add conversation memory, guild/review metadata for the
 knowledge base, the Phase 2A approval tables, and the Phase 2B Content Studio
 tables. Migration 7 adds nullable source/version metadata to existing solution
-candidates. These tests prove that an existing version-2 database upgrades in
-place without touching its data or the FTS index, that migration 4 backfills
-``guild_id`` and ``approved`` correctly, that a fresh database reaches v7 with all
-tables present, and that SQLite reports full integrity afterwards.
+candidates; migration 8 adds missions, research reports, planning tables,
+offline evaluation runs, draft provenance and guild-scoped audit; migration 9
+adds the durable scheduler jobs table. These tests prove that an existing
+version-2 database upgrades in place without touching its data or the FTS index,
+that migration 4 backfills ``guild_id`` and ``approved`` correctly, that a fresh
+database reaches v9 with all tables present, and that SQLite reports full
+integrity afterwards.
 
 The v2 fixture is a genuinely created version-2 database in a temp directory —
 never the real ``data/copilot.db``.
@@ -106,7 +109,7 @@ async def test_upgrade_from_v2_preserves_everything_and_adds_scoped_knowledge(tm
     db = Database(path)
     await db.connect()
     try:
-        assert await db.user_version() == 7
+        assert await db.user_version() == 9
         counts = await db.counts()
         assert counts["threads"] == 1
         assert counts["messages"] == 1
@@ -126,8 +129,15 @@ async def test_upgrade_from_v2_preserves_everything_and_adds_scoped_knowledge(tm
 
         repo = Repository(db)
         # The FTS index survived the migration and still matches.
-        titles = [row["title"] for row in await repo.search_kb("gateway", guild_id="500")]
+        titles = [
+            row["title"]
+            for row in await repo.search_kb(
+                "gateway", guild_id="500", approved_only=False
+            )
+        ]
         assert titles == ["Login doc"]
+        # The migrated unapproved row stays hidden from default retrieval.
+        assert await repo.search_kb("gateway", guild_id="500") == []
 
         # The new table is immediately usable through the repository.
         await repo.append_conversation_exchange(
@@ -151,7 +161,7 @@ async def test_upgrade_from_v2_preserves_everything_and_adds_scoped_knowledge(tm
         await db.close()
 
 
-async def test_migrations_3_through_7_are_additive_only(tmp_path):
+async def test_migrations_3_through_9_are_additive_only(tmp_path):
     """Only new tables/indexes and one nullable column appear; nothing is dropped."""
     path = tmp_path / "additive.db"
     _make_v2_database(path)
@@ -160,7 +170,7 @@ async def test_migrations_3_through_7_are_additive_only(tmp_path):
     db = Database(path)
     await db.connect()
     try:
-        assert await db.user_version() == 7
+        assert await db.user_version() == 9
         columns = {
             row["name"]
             for row in await db.fetchall("PRAGMA table_info(kb_docs)")
@@ -177,29 +187,89 @@ async def test_migrations_3_through_7_are_additive_only(tmp_path):
             for row in await db.fetchall("PRAGMA table_info(solutions)")
         }
         assert defaults["source_kind"] == "'manual'"
+        draft_columns = {
+            row["name"]: row["dflt_value"]
+            for row in await db.fetchall("PRAGMA table_info(content_drafts)")
+        }
+        assert {"source_kind", "source_ref"} <= set(draft_columns)
+        assert draft_columns["source_kind"] == "'manual'"
+        audit_columns = {
+            row["name"] for row in await db.fetchall("PRAGMA table_info(audit_log)")
+        }
+        assert "guild_id" in audit_columns
     finally:
         await db.close()
 
     after = _object_names(path)
     assert after - before == {
-        "conversation_turns",
-        "idx_conversation_turns_scope",
-        "idx_conversation_turns_created",
-        "idx_kb_docs_guild",
-        "approval_requests",
+        "agent_eval_runs",
+        "agent_run_steps",
+        "agent_runs",
         "approval_executions",
+        "approval_requests",
+        "attachments",
+        "content_calendar_entries",
+        "content_draft_versions",
+        "content_drafts",
+        "content_feedback",
+        "contextual_replies",
+        "conversation_turns",
+        "event_plans",
+        "guild_voice_profiles",
+        "idx_agent_eval_runs_guild",
+        "idx_agent_run_steps_run",
+        "idx_agent_runs_guild",
+        "idx_agent_runs_idempotency",
+        "idx_agent_runs_status",
+        "idx_approval_executions_approval",
+        "idx_approval_executions_key",
         "idx_approval_requests_due",
         "idx_approval_requests_guild",
-        "idx_approval_executions_key",
-        "idx_approval_executions_approval",
-        "content_drafts",
-        "content_draft_versions",
-        "idx_content_drafts_guild",
-        "idx_content_drafts_approval",
+        "idx_attachments_created",
+        "idx_attachments_message",
+        "idx_attachments_scope",
+        "idx_audit_log_guild",
+        "idx_calendar_guild_start",
         "idx_content_draft_versions_hash",
-        "sqlite_autoindex_content_draft_versions_1",
-        "idx_solutions_thread",
+        "idx_content_drafts_approval",
+        "idx_content_drafts_guild",
+        "idx_content_drafts_source",
+        "idx_content_feedback_guild",
+        "idx_contextual_replies_guild",
+        "idx_conversation_turns_created",
+        "idx_conversation_turns_scope",
+        "idx_event_plans_guild",
+        "idx_kb_docs_guild",
+        "idx_mission_steps_mission",
+        "idx_missions_guild_created",
+        "idx_missions_guild_status",
+        "idx_missions_idempotency",
+        "idx_moderation_incidents_author",
+        "idx_moderation_incidents_guild",
+        "idx_moderation_warnings_user",
+        "idx_reply_approvals_guild",
+        "idx_research_reports_guild",
+        "idx_research_reports_mission",
+        "idx_scheduled_jobs_due",
+        "idx_scheduled_jobs_guild",
         "idx_solutions_hash",
+        "idx_solutions_thread",
+        "mission_steps",
+        "missions",
+        "moderation_incidents",
+        "moderation_policies",
+        "moderation_warnings",
+        "reply_approvals",
+        "research_reports",
+        "scheduled_jobs",
+        "sqlite_autoindex_agent_run_steps_1",
+        "sqlite_autoindex_content_draft_versions_1",
+        "sqlite_autoindex_guild_voice_profiles_1",
+        "sqlite_autoindex_mission_steps_1",
+        "sqlite_autoindex_moderation_incidents_1",
+        "sqlite_autoindex_moderation_policies_1",
+        "sqlite_autoindex_moderation_warnings_1",
+        "sqlite_autoindex_scheduled_jobs_1",
     }
     assert before - after == set()
 
@@ -250,16 +320,23 @@ async def test_upgraded_database_keeps_working_after_reconnect(tmp_path):
     second = Database(path)
     await second.connect()
     try:
-        assert await second.user_version() == 7
+        assert await second.user_version() == 9
     finally:
         await second.close()
 
 
-async def test_fresh_database_reaches_v7_with_full_integrity(tmp_db):
-    assert await tmp_db.user_version() == 7
+async def test_fresh_database_reaches_v9_with_full_integrity(tmp_db):
+    assert await tmp_db.user_version() == 9
     assert (await tmp_db.counts())["conversation_turns"] == 0
     assert (await tmp_db.counts())["approval_requests"] == 0
     assert (await tmp_db.counts())["content_drafts"] == 0
     assert (await tmp_db.counts())["content_draft_versions"] == 0
+    assert (await tmp_db.counts())["missions"] == 0
+    assert (await tmp_db.counts())["mission_steps"] == 0
+    assert (await tmp_db.counts())["research_reports"] == 0
+    assert (await tmp_db.counts())["event_plans"] == 0
+    assert (await tmp_db.counts())["content_calendar_entries"] == 0
+    assert (await tmp_db.counts())["contextual_replies"] == 0
+    assert (await tmp_db.counts())["agent_eval_runs"] == 0
     assert (await tmp_db.fetchone("PRAGMA integrity_check"))[0] == "ok"
     assert await tmp_db.fetchall("PRAGMA foreign_key_check") == []

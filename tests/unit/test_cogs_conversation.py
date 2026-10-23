@@ -489,6 +489,51 @@ async def test_unsupported_attachment_type_gets_honest_note(tmp_path):
     assert "can't read that attachment type" in message.replies[0]["content"]
 
 
+async def test_text_log_attachment_is_fenced_and_delivered_to_model(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    provider = FakeProvider(responses=["The traceback points at line 3."])
+    cog, _ = make_cog(tmp_path, provider, repo=repo)
+    attachment = FakeAttachment(
+        filename="error.log",
+        content_type="text/plain",
+        data=b"Traceback (most recent call last):\nValueError: boom at line 3",
+    )
+    message = mention_message(mid=43, attachments=[attachment])
+
+    assert await cog._handle(message) is True
+    prompt = provider.calls[0]["messages"][-1]["content"]
+    assert "<attachments" in prompt
+    assert "never instructions" in prompt
+    assert "ValueError: boom at line 3" in prompt
+    assert message.replies[0]["content"].startswith("The traceback points at line 3.")
+    rows = await repo.recent_attachments(guild_id="500", channel_id="2002", user_id="7")
+    assert len(rows) == 1
+    assert "ValueError" in rows[0]["extracted_text"]
+
+
+async def test_followup_turn_sees_earlier_attachment_extract(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    provider = FakeProvider(responses=["first answer", "second answer"])
+    cog, _ = make_cog(tmp_path, provider, repo=repo)
+    first = mention_message(
+        mid=44,
+        attachments=[
+            FakeAttachment(
+                filename="build.log",
+                content_type="text/plain",
+                data=b"error: missing module foo",
+            )
+        ],
+    )
+    assert await cog._handle(first) is True
+
+    second = mention_message(mid=45, text="<@999> what did that log say?")
+    assert await cog._handle(second) is True
+    prompt = provider.calls[1]["messages"][-1]["content"]
+    assert "<earlier-attachments" in prompt
+    assert "error: missing module foo" in prompt
+
+
 # ------------------------------------------------------------------ diagnostics
 
 
@@ -596,6 +641,53 @@ def _reply_text(interaction) -> str:
     if interaction.followup.sent:
         return interaction.followup.sent[-1]["content"]
     return interaction.response.sent[-1]["content"]
+
+
+def _reply_embed(interaction):
+    if interaction.followup.sent:
+        return interaction.followup.sent[-1]["embed"]
+    return interaction.response.sent[-1]["embed"]
+
+
+async def test_conversation_status_reports_counts_without_content(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    cog, _ = make_cog(tmp_path, repo=repo)
+    await cog.memory.append((500, 2002, 7), "private question", "private answer")
+    await cog.memory.append((500, 2002, 8), "other user", "answer")
+
+    interaction = FakeInteraction(user=make_user(7), guild_id=500, channel_id=2002)
+    await ConversationCog.conversation_status.callback(cog, interaction)
+
+    embed = _reply_embed(interaction)
+    assert embed is not None
+    rendered = str(embed.to_dict())
+    assert "2 turn(s)" in rendered
+    assert "SQLite database" in rendered
+    assert "private question" not in rendered and "private answer" not in rendered
+    assert interaction.followup.sent[-1]["ephemeral"] is True
+
+
+async def test_conversation_status_is_honest_about_in_memory_fallback(tmp_path):
+    cog, _ = make_cog(tmp_path)
+    await cog.memory.append((500, 2002, 7), "question", "answer")
+
+    interaction = FakeInteraction(user=make_user(7), guild_id=500, channel_id=2002)
+    await ConversationCog.conversation_status.callback(cog, interaction)
+
+    rendered = str(_reply_embed(interaction).to_dict())
+    assert "2 turn(s)" in rendered
+    assert "In-memory only" in rendered
+
+
+async def test_conversation_status_rejects_another_guilds_channel(tmp_path, tmp_db):
+    cog, _ = make_cog(tmp_path, repo=Repository(tmp_db))
+    target = SimpleNamespace(id=3003, parent_id=None, guild=SimpleNamespace(id=999))
+    interaction = FakeInteraction(user=make_user(7), guild_id=500, channel_id=2002)
+
+    await ConversationCog.conversation_status.callback(cog, interaction, target)
+
+    assert "inspect your own memory in this server" in _reply_text(interaction)
+    assert interaction.response.deferred is None
 
 
 async def test_clear_conversation_removes_only_the_callers_scope(tmp_path, tmp_db):
@@ -730,6 +822,7 @@ async def test_clear_conversation_leaves_unrelated_records_untouched(tmp_path, t
         title="Login doc",
         body="gateway",
         url=None,
+        approved=True,
     )
     cog, _ = make_cog(tmp_path, repo=repo)
     await cog.memory.append((500, 2002, 7), "q", "a")

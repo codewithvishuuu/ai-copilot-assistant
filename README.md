@@ -1,6 +1,6 @@
 # Community Copilot
 
-A **local-first AI assistant for technical Discord communities**. It summarizes long forum threads, classifies issue status, extracts unanswered questions and key findings, flags possibly-related older discussions, helps analyze errors and stack traces, keeps a moderator-approved solution knowledge base, answers @mention questions in a bounded local chat that remembers recent context across restarts, and drafts community content for a second moderator to review and publish — running entirely on a local model through [Ollama](https://ollama.com).
+A **local-first AI assistant for technical Discord communities**. It summarizes long forum threads, classifies issue status, extracts unanswered questions and key findings, flags possibly-related older discussions, helps analyze errors and stack traces, runs bounded read-only multi-step missions with live progress, researches the web with cited sources, shows evidence-backed community health observations, evaluates its own safety and tool contracts offline, keeps a moderator-approved solution knowledge base, answers @mention questions in a bounded local chat that remembers recent context across restarts, and drafts community content, calendars, event plans and reply suggestions for human review, delegates bounded read-only work to specialist agent roles, ingests screenshots/logs/documents safely, runs durable analysis or draft jobs, and can flag configured abuse categories for human moderation — running entirely on a local model through [Ollama](https://ollama.com).
 
 **Discord is the interface.** Slash commands, @mention chat, and embeds are the entire UI: no website, no dashboard, no optional cloud AI API.
 
@@ -77,22 +77,46 @@ are live-smoke-tested; the per-item truth lives in [PLAN.md](PLAN.md).
 
 The internal program skill foundation is read-only and has no model tool surface. It
 exposes approved knowledge search (`kb.search`), guild-scoped insights
-(`insights.community`), Community Pulse (`pulse.community`, moderators), and pending
-candidate review info (`knowledge.candidates`, moderators). Skill IDs are selected by
-trusted application code, never by the model. Candidate creation and publication remain
-human commands.
+(`insights.community`), Community Pulse (`pulse.community`, moderators), pending
+candidate review info (`knowledge.candidates`, moderators), and configured web research
+(`research.web`, moderators). Skill IDs are selected by trusted application code, never by
+the model. Candidate creation, missions, drafts and publication remain human commands.
+
+Missions are bounded, human-started plans over those read-only skills (max 4 steps by
+default) with per-step persistence, live progress, cooperative cancellation, startup
+recovery for interrupted runs, and an audit trace. Web research is **disabled unless an
+operator configures a provider and key** (`WEB_RESEARCH_ENABLED`); it performs search-API
+queries only (no page fetching), rejects private/local URLs, and cites only URLs returned
+by the provider. When research is unavailable the bot reports that honestly instead of
+inventing sources. `research-draft` transfers a completed report into Content Studio with
+stored provenance — it never publishes.
 
 | Command | Who | Status | Purpose |
 |---|---|---|---|
 | `/status` | everyone | implemented | Truthful health: Discord, Ollama, model, database, queue |
 | `/summarize` | everyone | implemented | Summarize a forum thread: overview, problem, findings, decisions, open questions, status, next step, source links |
 | `/cancel` | requester | implemented | Cancel your queued/running summarization |
-| `/kb-search` | everyone | implemented | Search approved solutions + thread fingerprints (SQLite FTS5) |
+| `/kb-search` | everyone | implemented | Search approved knowledge only (SQLite FTS5); candidate review is a separate moderator workflow |
 | `/resolve` | moderator | implemented | Propose a resolution for a thread (needs approval to become official) |
 | `/approve-solution` | moderator | implemented | Promote a proposed solution into the searchable knowledge base |
 | `/reject-solution` | moderator | implemented | Reject a proposal (stays stored, not searchable) |
 | `/correct-status` | moderator | implemented | Override the AI's issue-status classification |
 | `/insights` | moderator | implemented | Recurring issues / unanswered-thread trends (minimum-data gated) |
+| `/mission` | moderator | implemented | Run a bounded read-only mission (community analysis, web research, or draft preparation) with live progress |
+| `/missions` | moderator | implemented | List recent missions in this server |
+| `/mission-view` | moderator | implemented | Show one mission's steps, trace and evidence references |
+| `/mission-cancel` | moderator | implemented | Request cooperative cancellation of a planned/running mission |
+| `/mission-control` | moderator | implemented | Mission status, provider availability and recent activity |
+| `/agent` | moderator | implemented | Plan and run a bounded dependency-aware set of read-only skills with live step progress |
+| `/agent-runs` | moderator | implemented | List recent host-agent runs in this server |
+| `/agent-view` | moderator | implemented | Show one run's steps, dependencies, outputs, evidence and errors |
+| `/agent-cancel` | moderator | implemented | Cancel a planned/running host-agent run |
+| `/agent-control` | moderator | implemented | Agent counts, roles, provider availability and recent runs |
+| `/radar` | moderator | implemented | Evidence-backed recurring questions/errors, open threads and knowledge gaps |
+| `/research` | moderator | implemented | Search the configured web provider and cite its sources (off unless configured) |
+| `/research-draft` | moderator | implemented | Turn a completed research report into a Content Studio draft (never publishes) |
+| `/evaluate` | configured devs | implemented | Run the offline contract, safety, isolation and regression suite |
+| `/evaluation-latest` | configured devs | implemented | Show the last persisted offline evaluation report |
 | `/pulse` | moderator | implemented | Evidence-backed observations + explicitly estimated recommendations (minimum-data gated) |
 | `/pulse-draft` | moderator | implemented | Create a Content Studio draft from one current Pulse recommendation; never submits or publishes |
 | `/knowledge-candidates` | moderator | implemented | List unapproved knowledge candidates and stale-source flags |
@@ -102,6 +126,7 @@ human commands.
 | `/knowledge-purge` | moderator | implemented | Permanently delete one approved knowledge document by `doc N` id (guild-scoped, audited, FTS-safe) |
 | `/debug` | configured devs | implemented | Explain an error or stack trace (never executes anything) |
 | `/forget` | moderator | implemented | Delete all stored data for a thread |
+| `/conversation-status` | everyone | implemented | Show counts/timestamps of your own stored chat memory (never message text) |
 | `/clear-conversation` | everyone | implemented | Delete your own stored @mention chat history in a channel (defaults to the current one) |
 | `/content-create` | moderator | implemented | Generate a bounded draft for an explicit target channel; no posting |
 | `/content-list` | moderator | implemented | Approval inbox filtered by status |
@@ -113,10 +138,32 @@ human commands.
 | `/content-cancel` | moderator | implemented | Cancel a pending/approved request |
 | `/content-publish` | moderator | implemented | Publish an approved draft immediately (disabled by default) |
 | `/content-recover` | moderator | implemented | Reconcile an ambiguous send only if the nonce-proven message exists |
+| `/calendar` | moderator | implemented | Show the informational content calendar and any linked scheduled job |
+| `/calendar-add` | moderator | implemented | Add one planned calendar entry (schedules nothing) |
+| `/calendar-cancel` | moderator | implemented | Cancel one planned calendar entry and its linked scheduled job |
+| `/calendar-schedule` | moderator | implemented | Link a calendar entry to a durable read-only analysis or approval-gated draft job |
+| `/schedule-agent` | moderator | implemented | Schedule a read-only host-agent run for a future time |
+| `/schedule-digest` | moderator | implemented | Schedule a read-only community digest run for a future time |
+| `/schedule-draft` | moderator | implemented | Schedule creation of an approval-gated Content Studio draft |
+| `/scheduled-jobs` | moderator | implemented | List durable scheduled jobs for this server |
+| `/schedule-cancel` | moderator | implemented | Cancel a pending scheduled job |
+| `/moderation-policy` | moderator | implemented | View/configure per-guild moderation thresholds and auto-delete |
+| `/moderation-status` | moderator | implemented | Show moderation policy, incident counts and recent cases |
+| `/moderation-review` | moderator | implemented | Confirm, dismiss or override one incident with a note |
+| `/event-plan` | moderator | implemented | Create a deterministic event plan template (creates nothing in Discord) |
+| `/event-plans` | moderator | implemented | List event plans |
+| `/event-plan-view` | moderator | implemented | View one event plan |
+| `/event-plan-archive` | moderator | implemented | Archive one draft event plan |
+| `/reply-draft` | moderator | implemented | Draft (never send) a contextual reply from a pasted excerpt |
+| `/reply-drafts` | moderator | implemented | List open reply drafts |
+| `/reply-view` | moderator | implemented | View one reply draft |
+| `/reply-dismiss` | moderator | implemented | Dismiss one reply draft |
 
 Content Studio publishing is **not live-verified** and is disabled unless
 `CONTENT_PUBLISHING_ENABLED=true`. Drafts are generated locally, reviewed by a human
-other than the author of that version, and sent only through the stored-approval path; no scheduling.
+other than the author of that version, and sent only through the stored-approval path.
+The durable scheduler can prepare a draft or run read-only analysis, but it has no publish
+job kind and never bypasses approval.
 
 ## Documentation map
 
@@ -136,6 +183,7 @@ other than the author of that version, and sent only through the stored-approval
 | [DEMO_GUIDE.md](DEMO_GUIDE.md) | College presentation runbook |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Fresh-machine / second-laptop guide + troubleshooting |
 | [CHANGELOG.md](CHANGELOG.md) | What changed, per phase |
+| [E2E_TEST_RUNBOOK.md](E2E_TEST_RUNBOOK.md) | Consolidated live E2E plan and deferred checks — **live E2E not yet run** |
 
 ## Privacy in one paragraph
 
@@ -147,6 +195,11 @@ it only within the configured retention window. Moderators can delete a thread's
 `/kb-search`). @mention chat turns are stored the same way — scoped strictly per user and
 channel, bounded by age and row caps, and deletable by you with `/clear-conversation`.
 Approved knowledge survives automatic thread expiry; audit rows are append-only and retained
-as decision/deletion evidence ([AUDIT.md](AUDIT.md)). When multiple guilds are allowlisted,
-knowledge-base search/grounding, related items, `/forget`, `/knowledge-purge`, and insights are
-isolated per guild. Details and limits: [SECURITY.md](SECURITY.md).
+as decision/deletion evidence ([AUDIT.md](AUDIT.md)). Missions, research reports, calendar
+entries, event plans and reply drafts are stored guild-scoped; missions are read-only, and
+reply drafts are never sent automatically. Web research is off by default; when enabled, the
+search query (not community message content) is sent to the configured provider, and only
+provider-returned URLs are cited. When multiple guilds are allowlisted,
+knowledge-base search/grounding, related items, `/forget`, `/knowledge-purge`, insights,
+missions, research, radar and planning data are isolated per guild. Details and limits:
+[SECURITY.md](SECURITY.md).

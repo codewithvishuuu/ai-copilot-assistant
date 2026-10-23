@@ -427,8 +427,12 @@ async def compute_community_pulse(
         )
 
     # Reuse the existing FTS5/BM25 duplicate path for possible related discussions.
+    # Moderator-only pulse evidence includes auto-indexed (unapproved) thread
+    # fingerprints, so this review surface opts out of approved-only retrieval.
     for _count, label, _cluster_rows in (question_clusters + error_clusters)[:2]:
-        related = await repo.related_docs(label, guild_id=str(guild_id), limit=3)
+        related = await repo.related_docs(
+            label, guild_id=str(guild_id), limit=3, approved_only=False
+        )
         if not related:
             continue
         evidence = [
@@ -719,12 +723,20 @@ async def create_draft_from_recommendation(
         purpose="Convert a Community Pulse estimate into a draft; human review is required.",
     )
     content = _draft_content(rec, max_chars=settings.content_generation_max_chars)
-    view = await studio.create_draft(actor, request, content, target=target)
+    view = await studio.create_draft(
+        actor,
+        request,
+        content,
+        target=target,
+        source_kind="pulse",
+        source_ref=recommendation_id,
+    )
     await repo.audit(
         actor_id=actor.actor_id,
         action="pulse.draft_created",
         target_type="content_draft",
         target_id=str(view.draft_id),
+        guild_id=str(actor.guild_id),
         meta={
             "guild_id": actor.guild_id,
             "recommendation_id": rec.recommendation_id,

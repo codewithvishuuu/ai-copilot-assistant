@@ -50,23 +50,33 @@ Remove-Item Env:\RUN_LIVE_OLLAMA
 | `tests/unit/test_embeds.py` | Discord limits, paging by fields and by text budget, mention neutralization, correction/related/notes sections, honest status wording |
 | `tests/unit/test_health.py` | truthful per-subsystem status (down/missing/ok), capabilities not probed when unreachable, health never raises |
 | `tests/unit/test_conversation.py` | chat trigger policy, bounded context store, `build_chat_messages`, fence-safe reply splitting (boundaries, limits, Hindi text, balanced fences) |
-| `tests/unit/test_chat_memory.py` | durable scoped turns, DB-first reads, clear semantics, honest degradation on DB failure |
-| `tests/unit/test_cogs_conversation.py` | listener/dispatch wiring, send failures (single/partial/rate-limited) with truthful `delivered=`, cooldown boundaries via injected clock, waiter cap + rate-limited notices, cancellation/timeout cleanup, redelivery dedup, clear-while-in-flight; approved-only, guild-scoped grounding |
+| `tests/unit/test_chat_memory.py` | durable scoped turns, DB-first reads, clear semantics, honest degradation on DB failure, scope-only memory stats (counts/timestamps, never content) |
+| `tests/unit/test_cogs_conversation.py` | listener/dispatch wiring, send failures (single/partial/rate-limited) with truthful `delivered=`, cooldown boundaries via injected clock, waiter cap + rate-limited notices, cancellation/timeout cleanup, redelivery dedup, clear-while-in-flight, `/conversation-status` counts/no-content/cross-guild denial; approved-only, guild-scoped grounding |
 | `tests/unit/test_cogs_summary.py` | `/summarize` target selection, cross-guild/off-allowlist refusal, queue flow, persistence, fingerprint indexing |
 | `tests/unit/test_cogs_moderation_*.py` | correction/resolve/approve/reject target and guild-scope denials, ack ordering, state changes |
 | `tests/unit/test_cogs_knowledge.py` | `/forget` same-guild purge, cross-guild/off-allowlist/non-moderator denials; `/knowledge-purge` success, non-moderator and cross-guild refusals |
 | `tests/unit/test_knowledge_purge.py` | approved document lookup/purge: authorization, guild isolation, missing/unapproved ids, FTS cleanup, audit metadata without content, failed-audit rollback, concurrent one-winner, orphan cleanup |
 | `tests/unit/test_persona.py` | persona prompt contract + versioning, static reply constants |
-| `tests/unit/test_migrations.py` | additive migration upgrade (v2 → v7 in place, seeded data + FTS intact, `guild_id`/`approved` backfill, approval tables/indexes, Content Studio tables + `approval_executions.result_ref`, solution source/hash columns); mid-block failure rolls back to v6 and closes the connection |
+| `tests/unit/test_migrations.py` | additive migration upgrade (v2 → v9 in place, seeded data + FTS intact, `guild_id`/`approved` backfill, approval tables/indexes, Content Studio tables + `approval_executions.result_ref`, solution source/hash columns, mission/research/planning/evaluation tables, draft provenance, `audit_log.guild_id`, attachments/voice/moderation/agent/scheduler tables + `reply_approvals`); approved-only default retrieval after upgrade; mid-block failure rolls back and closes the connection; fresh DB reaches v9 with full integrity |
 | `tests/unit/test_community_pulse.py` | minimum-data thresholds, reproducible evidence-backed recommendations, repeated questions/errors, common topics, approved-KB gap suppression, guild isolation, draft-only conversion |
 | `tests/unit/test_knowledge_candidates.py` | source/guild validation, exact duplicate refusal, possible-contradiction hints, unauthorized/cross-guild review, stale summaries, concurrent approve/reject, approved-vs-unapproved retrieval, retention |
 | `tests/unit/test_cogs_pulse.py` | `/pulse` threshold honesty, evidence rendering and estimate labeling, moderator gate |
 | `tests/unit/test_bot.py` | real `commands.Bot` wiring: intents, event dispatch end-to-end, redelivered message events, approval/content service wiring and content command registration |
 | `tests/unit/test_approvals.py` | Phase 2A approval state machine: human-only decisions, self-approval/agent/wrong-guild denial, expiry/cancellation, exact target/content-version/hash binding, concurrent decisions, execution claim uniqueness/idempotency, terminal outcomes, transactional audit rollback, storage-contention fail-closed, retention leaves approval evidence |
-| `tests/unit/test_content_studio.py` | Phase 2B Content Studio: bounded generation/validation, research blocking, malformed/unavailable provider, untrusted KB context/fence, immutable versions, cross-guild isolation, duplicate warning, exact-version approval, edit/target invalidation, missing/rejected/cancelled/expired approvals, callback authorization, human-only publish, disabled gate, idempotent/duplicate publication, definite/ambiguous/timeout/rate-limit adapter outcomes, restart recovery without evidence, permission changes, audit/retention |
+| `tests/unit/test_content_studio.py` | Phase 2B Content Studio: bounded generation/validation, research blocking, malformed/unavailable provider, untrusted KB context/fence, immutable versions, cross-guild isolation, duplicate warning, exact-version approval, edit/target invalidation, missing/rejected/cancelled/expired approvals, callback authorization, human-only publish, disabled gate, idempotent/duplicate publication, definite/ambiguous/timeout/rate-limit adapter outcomes, restart recovery without evidence, permission changes, audit/retention; guild voice profile, feedback reuse, approved-history grounding and exact-hash/near-duplicate repetition checks |
 | `tests/unit/test_agents_contract.py` | typed skill metadata, duplicate IDs, arbitrary-callable rejection, read-only enforcement, unknown lookup, extra-field rejection |
 | `tests/unit/test_agents_orchestrator.py` | guild/channel/permission authorization before execution, unknown/invalid input, timeout, provider failure mapping, safe exceptions, output bounds, cancellation |
 | `tests/unit/test_agents_builtin.py` | approved-only/guild-scoped `kb.search`, guild-scoped `insights.community`, moderator gate, read-only default registry, bot wiring |
+| `tests/unit/test_agents_host.py` | goal classification/planner bounds, registered-skill-only plans, dependency-ordered synthesis, honest unavailable web role, upstream output passing, bounded parallel barrier, partial failure → skipped dependents, cancellation, idempotency, disabled setting, cross-guild get/cancel denial, non-moderator denial, off-allowlist failure |
+| `tests/unit/test_attachments.py` | magic-byte detection over filename/MIME, size/count/page/pixel caps, image re-encode, PDF/DOCX/text extraction bounds, unsupported-format messages, retention/deletion scope, prompt fencing and follow-up references |
+| `tests/unit/test_moderation_ai.py` | guild-scoped policy evaluation, context vs isolated keywords, severity/confidence thresholds, policy-enabled deletion with permission, disabled policy, missing permission, ambiguous/low-confidence flags, repeat incidents, cross-guild denial, retry idempotency, privacy-safe audit, private-channel report delivery with fakes, no ban/timeout |
+| `tests/unit/test_scheduler.py` | read-only job kinds only (no publish), guild-scoped idempotency, timezone parsing/rejection, due-job execution + audit, digest mode, draft provenance, retry→fail, timeout retry, cancel + restart recovery, off-allowlist permanent failure, calendar-link cancellation |
+| `tests/unit/test_missions.py` | deterministic plan ordering/mode filtering/step cap, completion/failure/cancellation persistence with honest progress, terminal status summaries, idempotency, guild isolation, startup recovery (no nested transaction), moderator gate, disabled mode, service-level goal limit, shutdown cancellation |
+| `tests/unit/test_research.py` | `safe_source_url` public-URL policy, Brave/Tavily result mapping and dedupe, provider enablement/key checks, model synthesis with URLs stripped, extractive fallback, unavailable/failed persistence, audit without query text, provenance to Content Studio with cross-guild/failed-report denial |
+| `tests/unit/test_problem_radar.py` | minimum-data honesty, repeated question/problem evidence, approved-KB gap clearing, confidence scaling, no author fields, guild isolation |
+| `tests/unit/test_content_planning.py` | event-plan template/archive guard/cross-guild, calendar draft/plan links, soft cancel and second-cancel refusal, reply-draft mention neutralization/bounds/dismissal/audit, non-human actor denial |
+| `tests/unit/test_evaluation.py` | full offline evaluation passes and persists guild-scoped report + audit, honest disclaimer flags, isolation across guilds, permissive-skill regression fails the report; role roster, bounded dependency-aware planning, provider-availability honesty, agent-run idempotency/isolation, scheduler kind/idempotency/recovery checks |
+| `tests/unit/test_ui_surfaces.py` | mission status/steps/references, failed/empty states, radar insufficient/full evidence, research unavailable vs cited, evaluation offline scope/failure, planning empty/linked states, memory status counts-only/source labeling |
 | `tests/integration/test_live_ollama.py` | opt-in: real server reachable + model installed; one JSON round-trip that parses |
 
 ## Recorded runs
@@ -89,6 +99,13 @@ Remove-Item Env:\RUN_LIVE_OLLAMA
 | 2026-10-22 | `python -m ruff check --no-cache src tests scripts` | **All checks passed!** after Phase 3 |
 | 2026-10-22 | `python -m pytest -o addopts=""` | **574 passed, 2 skipped, 1 warning** after Phase 3.1 privacy/purge/operational hardening; 12 new tests plus embed/bot regressions; exit 0 |
 | 2026-10-22 | `python -m ruff check --no-cache src tests scripts` | **All checks passed!** after Phase 3.1 |
+| 2026-10-23 | `python -m pytest tests/unit/test_research.py tests/unit/test_missions.py tests/unit/test_problem_radar.py tests/unit/test_content_planning.py tests/unit/test_evaluation.py tests/unit/test_ui_surfaces.py -o addopts="" -q` | **62 passed in 5.02s**; two production bugs found and fixed (startup recovery nested transaction; unconditional planning transitions) |
+| 2026-10-23 | `python -m pytest tests/unit tests/integration -o addopts="" -q` | **636 passed, 2 skipped, 4 warnings in 30.55s** (skips = opt-in live-Ollama; warnings = discord.py `asyncio.iscoroutinefunction` deprecation); exit 0 |
+| 2026-10-23 | `python -m ruff check .` | **All checks passed!**; exit 0 |
+| 2026-10-23 | final rerun after docs + `/mission` goal-range adjustment: `python -m pytest tests/unit tests/integration -o addopts="" -q` | **636 passed, 2 skipped, 4 warnings in 28.28s**; all relative Markdown links resolve; exit 0 |
+| 2026-10-23 | after adding `/conversation-status`: `python -m pytest tests/unit tests/integration -o addopts="" -q`; `python -m ruff check .` | **642 passed, 2 skipped, 4 warnings in 31.10s**; Ruff clean; exit 0 |
+| 2026-10-23 | gap closure (host agent, multimodal, moderation, voice, scheduler): `.venv/Scripts/python.exe -m pytest tests/unit tests/integration -o addopts="" -q -rs` | **698 passed, 2 skipped, 4 warnings in 39.42s**; skips = opt-in live-Ollama tests; warnings = discord.py `asyncio.iscoroutinefunction` deprecation; exit 0 |
+| 2026-10-23 | gap closure lint: `.venv/Scripts/python.exe -m ruff check --no-cache src tests scripts` | **All checks passed!**; exit 0 |
 
 ## Manual verification (cannot be unit-tested here)
 
@@ -108,3 +125,10 @@ Remove-Item Env:\RUN_LIVE_OLLAMA
   Discord publish have **not been run**; publishing is disabled by default. A live run would need a
   scratch `DB_FILENAME`, a test guild/channel, `CONTENT_PUBLISHING_ENABLED=true`, and explicit
   confirmation that posting is acceptable.
+- Missions, research, radar, evaluation and planning commands were **not invoked against live
+  Discord** in the 2026-10-23 phase. Missions/radar/planning are covered by fake-provider and
+  temporary-database tests; research used a fake search provider (no real Brave/Tavily call), and
+  evaluation is offline by design. Live progress rendering, mission restart recovery, a real
+  provider response and command sync remain in [E2E_TEST_RUNBOOK.md](E2E_TEST_RUNBOOK.md).
+- **Consolidated live E2E: NOT RUN.** No bot login, slash-command sync, live provider call or
+  real-user workflow was performed in this phase, by instruction.

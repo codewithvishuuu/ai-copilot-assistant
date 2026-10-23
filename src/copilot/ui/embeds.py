@@ -14,6 +14,7 @@ from pathlib import Path
 import discord
 
 from ..core.analyzer import AnalysisResult, DebugResult
+from ..core.chat_memory import MemoryStats
 from ..core.collector import CollectedThread
 from ..core.duplicate import RelatedDoc
 from ..core.health import HealthReport
@@ -392,4 +393,63 @@ def build_debug_embed(result: DebugResult) -> discord.Embed:
     if result.repair_used:
         footer += " · 1 repair retry"
     embed.set_footer(text=footer)
+    return embed
+
+
+# ------------------------------------------------------------ conversation memory
+
+
+def build_memory_status_embed(
+    *,
+    channel_id: int,
+    stats: MemoryStats,
+    retention_days: int,
+    max_stored_turns: int,
+    context_turns: int,
+    grounding_enabled: bool,
+) -> discord.Embed:
+    """One user's own memory evidence: counts and bounds, never message text."""
+    persistent = stats.source == "database"
+    embed = discord.Embed(
+        title="🧠 Conversation memory — your scope",
+        description=(
+            f"Counts only your own @mention chat turns in <#{channel_id}>. "
+            "Message text is never shown here."
+        ),
+        colour=GREEN if persistent else ORANGE,
+    )
+    embed.add_field(
+        name="Stored turns",
+        value=f"{stats.turns} turn(s) — each exchange is stored as a question + answer.",
+        inline=False,
+    )
+    embed.add_field(
+        name="Oldest / newest",
+        value=f"{stats.oldest or '—'} → {stats.newest or '—'}",
+        inline=False,
+    )
+    embed.add_field(
+        name="Source",
+        value=(
+            "SQLite database (survives restarts)"
+            if persistent
+            else "In-memory only (database unavailable — not durable)"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="Bounds",
+        value=(
+            f"Turns older than {retention_days} day(s) are swept; at most "
+            f"{max_stored_turns} stored turn(s) per scope; replies use the last "
+            f"{context_turns} turn(s)."
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="KB grounding",
+        value="Enabled (approved documents only)" if grounding_enabled else "Disabled",
+        inline=False,
+    )
+    embed.set_footer(text="Use /clear-conversation to delete your stored turns in this channel.")
     return embed

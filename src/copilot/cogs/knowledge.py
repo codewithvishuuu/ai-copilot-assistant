@@ -33,9 +33,19 @@ class KnowledgeCog(CopilotCog):
     ) -> None:
         if not await checks.ensure_allowed(interaction, self.settings):
             return
-        rows = await self.repo.search_kb(
-            query, guild_id=str(interaction.guild_id), limit=5
-        )
+        if interaction.guild_id is None:
+            await self.reply(interaction, content="Knowledge search only works inside a server.")
+            return
+        try:
+            rows = await self.repo.search_kb(
+                query,
+                guild_id=str(interaction.guild_id),
+                limit=5,
+                approved_only=True,
+            )
+        except CopilotError as exc:
+            await self.reply(interaction, content=exc.user_message())
+            return
         if not rows:
             await self.reply(
                 interaction,
@@ -232,12 +242,18 @@ class KnowledgeCog(CopilotCog):
         counts = await retention.purge_thread(
             self.db, str(thread.id), guild_id=str(interaction.guild_id)
         )
+        attachment_count = await self.repo.delete_attachments_for_channel(
+            guild_id=str(interaction.guild_id), channel_id=str(thread.id)
+        )
+        if attachment_count:
+            counts["attachments"] = attachment_count
         await self.repo.audit(
             actor_id=str(interaction.user.id),
             action="thread.forgotten",
             target_type="thread",
             target_id=str(thread.id),
-            meta={"deleted": counts},
+            guild_id=str(interaction.guild_id),
+            meta={"guild_id": str(interaction.guild_id), "deleted": counts},
         )
         if not counts:
             await self.reply(

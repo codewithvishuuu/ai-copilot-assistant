@@ -8,8 +8,10 @@ the Phase 2A approval service claims the exact approved binding.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 import discord
 from discord import app_commands
@@ -17,11 +19,13 @@ from discord import app_commands
 from ..core.approvals import ActorKind, ApprovalActor, ApprovalPermission
 from ..core.content_studio import (
     ContentDraftView,
+    ContentLength,
     ContentTarget,
     ContentType,
     DraftRequest,
     DraftStatus,
 )
+from ..core.content_voice import VoiceProfile, load_voice_profile, save_voice_profile
 from ..core.publishing import PublishResult, PublishStatus
 from ..errors import (
     ContentDraftConflictError,
@@ -40,6 +44,18 @@ _CONTENT_TYPES = [
     app_commands.Choice(name="Educational post", value="educational_post"),
     app_commands.Choice(name="Poll proposal", value="poll_proposal"),
     app_commands.Choice(name="Event announcement", value="event_announcement"),
+]
+
+_LENGTH_CHOICES = [
+    app_commands.Choice(name="Short (≤500 chars)", value="short"),
+    app_commands.Choice(name="Medium (≤1000 chars)", value="medium"),
+    app_commands.Choice(name="Long (server limit)", value="long"),
+]
+
+_EMOJI_CHOICES = [
+    app_commands.Choice(name="None", value="none"),
+    app_commands.Choice(name="Sparing", value="sparing"),
+    app_commands.Choice(name="Allowed", value="allowed"),
 ]
 
 _STATUS_CHOICES = [
@@ -67,7 +83,8 @@ _STATUS_COLORS = {
 }
 
 _ACTION_LABELS = {
-    "approve": ("Approve", discord.ButtonStyle.success),
+    "edit": ("Edit", discord.ButtonStyle.secondary),
+    "approve": ("Approve…", discord.ButtonStyle.success),
     "reject": ("Reject", discord.ButtonStyle.danger),
     "publish": ("Publish", discord.ButtonStyle.primary),
     "recover": ("Reconcile", discord.ButtonStyle.secondary),
@@ -99,6 +116,77 @@ def moderator_actor(interaction, settings) -> ApprovalActor:
     )
 
 
+class ContentApprovalNoteModal(discord.ui.Modal, title="Approve exact draft version"):
+    def __init__(self, cog: ContentCog, draft_id: int) -> None:
+        super().__init__()
+        self.cog = cog
+        self.draft_id = draft_id
+        self.note = discord.ui.TextInput(
+            label="Approval note (optional)",
+            style=discord.TextStyle.paragraph,
+            required=False,
+            max_length=500,
+        )
+        self.add_item(self.note)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await checks.ensure_allowed(interaction, self.cog.settings):
+            return
+        if not await checks.ensure_moderator(interaction, self.cog.settings):
+            return
+        try:
+            actor = moderator_actor(interaction, self.cog.settings)
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            view = await self.cog.studio.approve_draft(
+                actor, self.draft_id, note=str(self.note.value or "") or None
+            )
+            await self.cog._reply_view(interaction, view)
+        except Exception as exc:  # noqa: BLE001 - modal callbacks need their own safe reply
+            await self.cog._safe_error(interaction, exc)
+
+
+class ContentEditModal(discord.ui.Modal, title="Edit content draft"):
+    def __init__(
+        self,
+        cog: ContentCog,
+        *,
+        draft_id: int,
+        expected_version: int,
+        content: str,
+    ) -> None:
+        super().__init__()
+        self.cog = cog
+        self.draft_id = draft_id
+        self.expected_version = expected_version
+        self.content = discord.ui.TextInput(
+            label=f"New text (creates v{expected_version + 1})",
+            style=discord.TextStyle.paragraph,
+            default=content[:4000],
+            required=True,
+            min_length=1,
+            max_length=4000,
+        )
+        self.add_item(self.content)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        if not await checks.ensure_allowed(interaction, self.cog.settings):
+            return
+        if not await checks.ensure_moderator(interaction, self.cog.settings):
+            return
+        try:
+            actor = moderator_actor(interaction, self.cog.settings)
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            view = await self.cog.studio.edit_draft(
+                actor,
+                self.draft_id,
+                expected_version=self.expected_version,
+                content=str(self.content.value or ""),
+            )
+            await self.cog._reply_view(interaction, view)
+        except Exception as exc:  # noqa: BLE001 - modal callbacks need their own safe reply
+            await self.cog._safe_error(interaction, exc)
+
+
 class ContentActionButton(discord.ui.Button):
     def __init__(self, *, draft_id: int, action: str) -> None:
         label, style = _ACTION_LABELS[action]
@@ -113,7 +201,13 @@ class ContentActionButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction) -> None:
         view = self.view
-        if isinstance(view, ContentActionView):
+        if not isinstance(view, ContentActionView):
+            return
+        if self.action == "edit":
+            await view.open_edit_modal(interaction)
+        elif self.action == "approve":
+            await view.open_approve_modal(interaction)
+        else:
             await view.handle(interaction, self.draft_id, self.action)
 
 
@@ -129,15 +223,33 @@ class ContentActionView(discord.ui.View):
     ) -> None:
         super().__init__(timeout=900)
         self.cog = cog
+        self.draft = view
         for action in actions:
             self.add_item(ContentActionButton(draft_id=view.draft_id, action=action))
 
     async def handle(self, interaction: discord.Interaction, draft_id: int, action: str) -> None:
         await self.cog.perform_action(interaction, draft_id, action)
 
+    async def open_approve_modal(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(
+            ContentApprovalNoteModal(self.cog, self.draft.draft_id)
+        )
+
+    async def open_edit_modal(self, interaction: discord.Interaction) -> None:
+        await interaction.response.send_modal(
+            ContentEditModal(
+                self.cog,
+                draft_id=self.draft.draft_id,
+                expected_version=self.draft.version,
+                content=self.draft.content,
+            )
+        )
+
 
 def _actions_for(view: ContentDraftView) -> list[str]:
     actions: list[str] = []
+    if view.can_edit:
+        actions.append("edit")
     if view.can_approve:
         actions.append("approve")
     if view.can_reject:
@@ -151,6 +263,33 @@ def _actions_for(view: ContentDraftView) -> list[str]:
 
 def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def voice_embed(voice: VoiceProfile) -> discord.Embed:
+    embed = discord.Embed(
+        title="Community content voice",
+        color=discord.Color.blurple(),
+        description="Guild-scoped style guidance injected as untrusted data. It never overrides safety rules.",
+    )
+    embed.add_field(name="Tone", value=_clip(voice.tone or "not set", 256), inline=True)
+    embed.add_field(name="Audience", value=_clip(voice.audience or "not set", 256), inline=True)
+    embed.add_field(name="Emoji", value=voice.emoji_policy, inline=True)
+    embed.add_field(name="Formatting", value=_clip(voice.formatting or "not set", 256), inline=False)
+    if voice.style_notes:
+        embed.add_field(name="Style notes", value=_clip(voice.style_notes, 1024), inline=False)
+    if voice.banned_phrases:
+        embed.add_field(
+            name="Banned phrases",
+            value=_clip(", ".join(voice.banned_phrases), 1024),
+            inline=False,
+        )
+    if voice.updated_by:
+        embed.set_footer(text=f"Last updated by {voice.updated_by}")
+    return embed
 
 
 def draft_embed(view: ContentDraftView) -> discord.Embed:
@@ -352,7 +491,7 @@ class ContentCog(CopilotCog):
         name="content-create",
         description="Moderator: generate a community content draft for human review",
     )
-    @app_commands.choices(content_type=_CONTENT_TYPES)
+    @app_commands.choices(content_type=_CONTENT_TYPES, length=_LENGTH_CHOICES, emoji_policy=_EMOJI_CHOICES)
     @app_commands.describe(
         content_type="What kind of content to draft",
         topic="Explicit topic or brief",
@@ -360,6 +499,9 @@ class ContentCog(CopilotCog):
         audience="Who this is for",
         tone="Requested tone",
         purpose="Why this is being posted",
+        length="Requested length",
+        formatting="Requested formatting (e.g. bullets, headers, no links)",
+        emoji_policy="How many emoji to use",
     )
     async def content_create(
         self,
@@ -370,6 +512,9 @@ class ContentCog(CopilotCog):
         audience: str | None = None,
         tone: str | None = None,
         purpose: str | None = None,
+        length: app_commands.Choice[str] | None = None,
+        formatting: str | None = None,
+        emoji_policy: app_commands.Choice[str] | None = None,
     ) -> None:
         actor = await self._gate(interaction)
         if actor is None:
@@ -387,6 +532,9 @@ class ContentCog(CopilotCog):
                 audience=audience or "",
                 tone=tone or "",
                 purpose=purpose or "",
+                length=ContentLength(length.value if length is not None else "medium"),
+                formatting=formatting or "",
+                emoji_policy=emoji_policy.value if emoji_policy is not None else "",
             )
             view = await self.studio.generate_draft(actor, request, target=target, provider=self.provider)
             await self._reply_view(interaction, view)
@@ -580,6 +728,164 @@ class ContentCog(CopilotCog):
                 interaction,
                 embed=publish_embed(result),
                 view=await self._result_view(draft_id, result, actor),
+            )
+        except Exception as exc:  # noqa: BLE001
+            await self._safe_error(interaction, exc)
+
+    # ------------------------------------------------------------- voice memory
+
+    @app_commands.command(
+        name="voice-show",
+        description="Moderator: show this server's content voice and style preferences",
+    )
+    async def voice_show(self, interaction: discord.Interaction) -> None:
+        actor = await self._gate(interaction)
+        if actor is None:
+            return
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            voice = await load_voice_profile(self.repo, actor.guild_id)
+            await self.reply(interaction, embed=voice_embed(voice))
+        except Exception as exc:  # noqa: BLE001
+            await self._safe_error(interaction, exc)
+
+    @app_commands.command(
+        name="voice-set",
+        description="Moderator: update this server's content voice (omitted fields are kept)",
+    )
+    @app_commands.choices(emoji_policy=_EMOJI_CHOICES)
+    @app_commands.describe(
+        tone="Preferred tone",
+        audience="Default audience",
+        emoji_policy="Emoji policy",
+        formatting="Preferred formatting",
+        style_notes="Additional style guidance",
+        banned_phrases="Comma-separated phrases the writer must avoid",
+        clear="Reset the whole voice profile",
+    )
+    async def voice_set(
+        self,
+        interaction: discord.Interaction,
+        tone: app_commands.Range[str, 1, 100] | None = None,
+        audience: app_commands.Range[str, 1, 200] | None = None,
+        emoji_policy: app_commands.Choice[str] | None = None,
+        formatting: app_commands.Range[str, 1, 200] | None = None,
+        style_notes: app_commands.Range[str, 1, 1500] | None = None,
+        banned_phrases: app_commands.Range[str, 1, 2000] | None = None,
+        clear: bool = False,
+    ) -> None:
+        actor = await self._gate(interaction)
+        if actor is None:
+            return
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            current = await load_voice_profile(self.repo, actor.guild_id)
+            if clear:
+                voice = await save_voice_profile(
+                    self.repo,
+                    guild_id=actor.guild_id,
+                    updated_by=actor.actor_id,
+                    tone="",
+                    audience="",
+                    emoji_policy="sparing",
+                    formatting="",
+                    style_notes="",
+                    banned_phrases=[],
+                    now=_now_iso(),
+                )
+            else:
+                phrases = (
+                    [item.strip() for item in banned_phrases.split(",") if item.strip()]
+                    if banned_phrases is not None
+                    else list(current.banned_phrases)
+                )
+                voice = await save_voice_profile(
+                    self.repo,
+                    guild_id=actor.guild_id,
+                    updated_by=actor.actor_id,
+                    tone=current.tone if tone is None else tone,
+                    audience=current.audience if audience is None else audience,
+                    emoji_policy=(emoji_policy.value if emoji_policy is not None else current.emoji_policy),
+                    formatting=current.formatting if formatting is None else formatting,
+                    style_notes=current.style_notes if style_notes is None else style_notes,
+                    banned_phrases=phrases,
+                    now=_now_iso(),
+                )
+            await self.repo.audit(
+                actor_id=actor.actor_id,
+                action="content.voice_updated",
+                target_type="guild",
+                target_id=str(actor.guild_id),
+                guild_id=str(actor.guild_id),
+                meta={
+                    "guild_id": str(actor.guild_id),
+                    "cleared": clear,
+                    "emoji_policy": voice.emoji_policy,
+                    "banned_phrase_count": len(voice.banned_phrases),
+                },
+            )
+            await self.reply(interaction, embed=voice_embed(voice))
+        except Exception as exc:  # noqa: BLE001
+            await self._safe_error(interaction, exc)
+
+    @app_commands.command(
+        name="content-feedback",
+        description="Moderator: record style feedback that future drafts should reuse",
+    )
+    @app_commands.describe(
+        feedback="What the writer should do differently",
+        draft_id="Optional draft this feedback refers to",
+        tags="Optional comma-separated labels",
+    )
+    async def content_feedback(
+        self,
+        interaction: discord.Interaction,
+        feedback: app_commands.Range[str, 3, 1000],
+        draft_id: int | None = None,
+        tags: str | None = None,
+    ) -> None:
+        actor = await self._gate(interaction)
+        if actor is None:
+            return
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+            version: int | None = None
+            if draft_id is not None:
+                draft = await self.studio.get_draft(actor, draft_id)
+                version = draft.version
+            labels = (
+                [item.strip()[:40] for item in tags.split(",") if item.strip()][:10]
+                if tags
+                else []
+            )
+            feedback_id = await self.repo.add_content_feedback(
+                guild_id=str(actor.guild_id),
+                draft_id=draft_id,
+                version=version,
+                feedback=feedback,
+                tags_json=json.dumps(labels),
+                created_by=actor.actor_id,
+                created_at=_now_iso(),
+            )
+            await self.repo.audit(
+                actor_id=actor.actor_id,
+                action="content.feedback_added",
+                target_type="content_feedback",
+                target_id=str(feedback_id),
+                guild_id=str(actor.guild_id),
+                meta={
+                    "guild_id": str(actor.guild_id),
+                    "draft_id": draft_id,
+                    "version": version,
+                    "tags": labels,
+                },
+            )
+            await self.reply(
+                interaction,
+                content=(
+                    f"Feedback `#{feedback_id}` saved. Future drafts in this server will reuse it "
+                    "as untrusted style guidance; it never changes approval policy."
+                ),
             )
         except Exception as exc:  # noqa: BLE001
             await self._safe_error(interaction, exc)

@@ -561,6 +561,7 @@ class ApprovalService:
             action=f"approval.{action}_denied",
             target_type=target_type,
             target_id=str(target_id),
+            guild_id=str(actor.guild_id),
             meta={"reason": reason, "guild_id": actor.guild_id},
         )
 

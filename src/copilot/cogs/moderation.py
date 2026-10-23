@@ -61,7 +61,8 @@ class ModerationCog(CopilotCog):
             action="status.corrected",
             target_type="thread",
             target_id=str(thread.id),
-            meta={"status": status.value},
+            guild_id=str(interaction.guild_id),
+            meta={"guild_id": str(interaction.guild_id), "status": status.value},
         )
         await self.reply(
             interaction,

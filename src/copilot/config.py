@@ -121,6 +121,81 @@ class Settings(BaseSettings):
     insights_min_threads: int = Field(default=5, ge=1)
     insights_window_days: int = Field(default=30, ge=1)
 
+    # ----- Missions (Phase 3) -----
+    # A mission is a bounded, human-started plan over the existing read-only
+    # skill registry. Steps never write, publish or execute external actions.
+    missions_enabled: bool = True
+    mission_max_steps: int = Field(default=4, ge=1, le=6)
+    mission_max_goal_chars: int = Field(default=500, ge=20, le=1000)
+    mission_step_timeout_s: float = Field(default=45.0, gt=0)
+    mission_max_result_chars: int = Field(default=8000, ge=500, le=20000)
+
+    # ----- Main Host Agent (gap closure) -----
+    # The host delegates only to registered read-only skills with bounded
+    # concurrency. It never publishes or performs moderation actions.
+    agent_enabled: bool = True
+    agent_max_steps: int = Field(default=5, ge=1, le=6)
+    agent_max_goal_chars: int = Field(default=500, ge=20, le=800)
+    agent_max_parallel: int = Field(default=2, ge=1, le=4)
+    agent_run_timeout_s: float = Field(default=150.0, gt=0, le=600)
+
+    # ----- Attachment ingestion (gap closure) -----
+    attachments_enabled: bool = True
+    attachment_max_count: int = Field(default=5, ge=1, le=10)
+    attachment_max_bytes: int = Field(default=8_000_000, ge=100_000, le=25_000_000)
+    attachment_max_text_chars: int = Field(default=16_000, ge=500, le=60_000)
+    attachment_max_pdf_pages: int = Field(default=30, ge=1, le=100)
+    attachment_max_image_pixels: int = Field(default=20_000_000, ge=10_000)
+    attachment_retention_days: int = Field(default=3, ge=1, le=30)
+    attachment_followup_turns: int = Field(default=6, ge=1, le=20)
+
+    # ----- AI moderation (gap closure) -----
+    # Disabled by default; enabling requires an explicit per-guild policy and a
+    # private moderator report channel. No auto-ban/timeout exists at all.
+    moderation_enabled: bool = False
+    moderation_report_channel_id: int | None = None
+    moderation_repeat_window_days: int = Field(default=7, ge=1, le=90)
+    moderation_timeout_s: float = Field(default=30.0, gt=0, le=120)
+    moderation_max_tokens: int = Field(default=300, ge=64, le=1024)
+    moderation_default_confidence: float = Field(default=0.75, ge=0.0, le=1.0)
+    moderation_default_severity: str = "high"
+
+    # ----- Durable scheduler (gap closure) -----
+    scheduler_enabled: bool = True
+    scheduler_tick_s: float = Field(default=30.0, ge=5.0, le=300.0)
+    scheduler_tick_batch: int = Field(default=10, ge=1, le=50)
+    scheduler_job_timeout_s: float = Field(default=120.0, gt=0, le=600)
+    scheduler_max_attempts: int = Field(default=3, ge=1, le=10)
+
+    # ----- Chat reply approval (gap closure) -----
+    # When enabled, generated chat replies are queued as exact content+channel
+    # approvals and are not sent until a different human moderator approves.
+    reply_approval_enabled: bool = False
+    reply_approval_ttl_s: int = Field(default=3600, ge=60, le=604800)
+
+    # ----- Content voice memory (gap closure) -----
+    content_feedback_limit: int = Field(default=6, ge=0, le=20)
+    content_similarity_threshold: float = Field(default=0.82, ge=0.5, le=0.99)
+    content_dedupe_recent: int = Field(default=40, ge=5, le=200)
+
+    # ----- Web research (Phase 3) -----
+    # Off unless an operator configures a provider and key. When unavailable,
+    # research degrades to a clear status, never to fabricated citations.
+    web_research_enabled: bool = False
+    web_search_provider: str = "none"
+    brave_search_api_key: SecretStr = SecretStr("")
+    tavily_api_key: SecretStr = SecretStr("")
+    web_search_timeout_s: float = Field(default=20.0, gt=0)
+    web_search_max_results: int = Field(default=5, ge=1, le=8)
+    web_search_max_chars: int = Field(default=6000, ge=500, le=20000)
+    research_max_sources: int = Field(default=5, ge=1, le=8)
+    research_synthesis_max_tokens: int = Field(default=600, ge=64, le=2000)
+
+    # ----- Content planning (Phase 3/4) -----
+    content_calendar_max_entries: int = Field(default=100, ge=1, le=500)
+    contextual_reply_max_chars: int = Field(default=800, ge=100, le=1800)
+    event_plan_max_chars: int = Field(default=1500, ge=100, le=4000)
+
     # ----- Content Studio (Phase 2B) -----
     # Generation is bounded; publication is a separate, human-approved action.
     # Publishing is off by default so an operator must opt in after configuring
@@ -165,6 +240,14 @@ class Settings(BaseSettings):
             raise ValueError(f"LOG_LEVEL must be one of {sorted(_LOG_LEVELS)}, got {value!r}")
         return level
 
+    @field_validator("web_search_provider")
+    @classmethod
+    def _normalize_research_provider(cls, value: str) -> str:
+        provider = (value or "none").strip().lower()
+        if provider not in {"none", "brave", "tavily"}:
+            raise ValueError("WEB_SEARCH_PROVIDER must be one of: none, brave, tavily")
+        return provider
+
     @model_validator(mode="after")
     def _cross_field_checks(self) -> Settings:
         if self.max_messages > self.hard_max_messages:
@@ -189,6 +272,27 @@ class Settings(BaseSettings):
     @property
     def logs_dir(self) -> Path:
         return Path(self.data_dir) / "logs"
+
+    @property
+    def web_search_api_key(self) -> str:
+        if self.web_search_provider == "brave":
+            return self.brave_search_api_key.get_secret_value().strip()
+        if self.web_search_provider == "tavily":
+            return self.tavily_api_key.get_secret_value().strip()
+        return ""
+
+    @property
+    def research_unavailable_reason(self) -> str | None:
+        """Why live web research cannot run, or None when it is ready."""
+        if not self.web_research_enabled:
+            return "Web research is disabled (WEB_RESEARCH_ENABLED=false)."
+        if self.web_search_provider == "none":
+            return "No web search provider is configured (WEB_SEARCH_PROVIDER=none)."
+        if not self.web_search_api_key:
+            return (
+                f"WEB_SEARCH_PROVIDER={self.web_search_provider} is set but its API key is missing."
+            )
+        return None
 
     def validate_for_run(self) -> None:
         """Startup gate: raise ``ConfigError`` with a helpful, secret-free message."""

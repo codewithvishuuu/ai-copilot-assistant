@@ -8,6 +8,9 @@ paths because they require a Discord thread or a separate dev-only boundary.
 
 from __future__ import annotations
 
+import json
+from typing import Any
+
 from pydantic import Field
 
 from ..core.approvals import ActorKind, ApprovalActor, ApprovalPermission
@@ -15,6 +18,8 @@ from ..core.community_pulse import CommunityPulse, compute_community_pulse
 from ..core.insights_engine import compute_insights
 from ..core.knowledge_candidates import list_candidates
 from ..db.repository import Repository
+from ..errors import ResearchNoResultsError, ResearchProviderError, ResearchUnavailableError
+from ..research.service import ResearchService, ResearchStatus
 from ..util.text import sanitize_for_prompt, truncate
 from .contract import (
     Reference,
@@ -235,6 +240,159 @@ class KnowledgeCandidatesSkill(Skill[CandidatesInput, CandidatesOutput]):
         return CandidatesOutput(candidates=summaries)
 
 
+class ResearchInput(SkillInput):
+    query: str = Field(min_length=3, max_length=500)
+
+
+class ResearchOutput(SkillOutput):
+    query: str
+    status: str
+    provider: str
+    synthesis: str
+    summary: str
+    citations: list[str]
+
+
+class ResearchSkill(Skill[ResearchInput, ResearchOutput]):
+    """One bounded web search + extractive summary through the research service.
+
+    The mission runner calls this without model synthesis so the skill stays
+    within its timeout. The interactive /research command can add synthesis.
+    """
+
+    skill_id = "research.web"
+    description = "Run one bounded web search and return grounded, cited sources."
+    input_model = ResearchInput
+    output_model = ResearchOutput
+    permissions = frozenset({SkillPermission.moderator})
+    limits = SkillLimits(timeout_s=30.0, max_output_chars=18_000)
+    read_only = True
+    error_policy = SkillErrorPolicy.safe_error
+
+    def __init__(self, service: ResearchService) -> None:
+        self._service = service
+
+    async def execute(self, context: SkillContext, payload: ResearchInput) -> ResearchOutput:
+        outcome = await self._service.research(
+            guild_id=str(context.guild_id),
+            query=payload.query,
+            llm=None,
+        )
+        if outcome.status is ResearchStatus.unavailable:
+            raise ResearchUnavailableError(outcome.reason)
+        if outcome.status is not ResearchStatus.completed:
+            if outcome.error_code == "no_results":
+                raise ResearchNoResultsError(outcome.reason)
+            raise ResearchProviderError(outcome.reason)
+        return ResearchOutput(
+            query=outcome.query,
+            status=outcome.status.value,
+            provider=outcome.provider,
+            synthesis=outcome.synthesis,
+            summary=outcome.summary,
+            citations=outcome.citation_lines(),
+            references=[
+                Reference(
+                    kind="web",
+                    title=truncate(source.title, 200) or "Web source",
+                    url=truncate(source.url, 1000),
+                    snippet=truncate(source.snippet, 400),
+                )
+                for source in outcome.sources[:20]
+            ],
+        )
+
+
+class SynthesisInput(SkillInput):
+    """Goal plus the bounded outputs of dependency steps, injected by the host."""
+
+    goal: str = Field(min_length=3, max_length=500)
+    upstream: dict[str, Any] = Field(default_factory=dict)
+
+
+class SynthesisOutput(SkillOutput):
+    brief: str
+    sources_used: int
+
+
+class SynthesisBriefSkill(Skill[SynthesisInput, SynthesisOutput]):
+    """Deterministic combination of dependency outputs; no model call, no invented facts."""
+
+    skill_id = "synthesis.brief"
+    description = "Combine upstream read-only results into one traceable brief."
+    input_model = SynthesisInput
+    output_model = SynthesisOutput
+    permissions = frozenset({SkillPermission.guild_member})
+    limits = SkillLimits(timeout_s=5.0, max_output_chars=12_000)
+    read_only = True
+    error_policy = SkillErrorPolicy.safe_error
+
+    async def execute(self, context: SkillContext, payload: SynthesisInput) -> SynthesisOutput:
+        lines = [f"Goal: {truncate(sanitize_for_prompt(payload.goal), 500)}", "", "Evidence reviewed:"]
+        sources = 0
+        uncertainty: list[str] = []
+        for key, value in list(payload.upstream.items())[:6]:
+            label = truncate(sanitize_for_prompt(str(key)), 80) or "step"
+            text = _summarize_upstream(value)
+            if not text:
+                uncertainty.append(f"{label}: no usable output was returned.")
+                continue
+            sources += 1
+            lines.append(f"- {label}: {text}")
+        if not sources:
+            uncertainty.append("No dependency returned usable evidence.")
+        lines.append("")
+        lines.append("What is observed:")
+        if sources:
+            lines.append("- The statements above come from the listed read-only tool outputs only.")
+        else:
+            lines.append("- Nothing verifiable was retrieved for this goal.")
+        lines.append("")
+        lines.append("Uncertainty / conflicts:")
+        if uncertainty:
+            lines.extend(f"- {item}" for item in uncertainty)
+        else:
+            lines.append(
+                "- No direct conflict was detected in the returned evidence; "
+                "absence of conflict is not proof."
+            )
+        lines.append("")
+        lines.append(
+            "This brief is read-only evidence combination, not a verified real-world outcome."
+        )
+        return SynthesisOutput(brief=truncate("\n".join(lines), 8_000), sources_used=sources)
+
+
+def _summarize_upstream(value: object) -> str:
+    """Compact one upstream skill output without trusting or inventing its fields."""
+    if not isinstance(value, dict):
+        return ""
+    parts: list[str] = []
+    for field in ("summary", "brief", "text", "status", "query"):
+        item = value.get(field)
+        if isinstance(item, str) and item.strip():
+            parts.append(f"{field}={truncate(sanitize_for_prompt(item), 700)}")
+    references = value.get("references")
+    if isinstance(references, list) and references:
+        titles: list[str] = []
+        for reference in references[:5]:
+            if isinstance(reference, dict):
+                title = reference.get("title")
+                if isinstance(title, str) and title.strip():
+                    titles.append(truncate(sanitize_for_prompt(title), 120))
+        if titles:
+            parts.append("references=" + "; ".join(titles))
+    if not parts:
+        # Structured outputs without the common fields (pulse/insights): a bounded
+        # JSON projection is honest and deterministic; it is labelled as raw data.
+        try:
+            raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        except (TypeError, ValueError):
+            return ""
+        parts.append("data=" + truncate(sanitize_for_prompt(raw), 1_200))
+    return " | ".join(parts)
+
+
 def build_default_registry(
     repo: Repository,
     *,
@@ -242,9 +400,11 @@ def build_default_registry(
     insights_minimum_threads: int,
     pulse_window_days: int | None = None,
     pulse_minimum_threads: int | None = None,
+    research_service: ResearchService | None = None,
 ) -> SkillRegistry:
     """Build the explicit registry (read-only capabilities only)."""
     registry = SkillRegistry()
+    registry.register(SynthesisBriefSkill())
     registry.register(KbSearchSkill(repo))
     registry.register(
         InsightsSkill(
@@ -261,4 +421,6 @@ def build_default_registry(
         )
     )
     registry.register(KnowledgeCandidatesSkill(repo))
+    if research_service is not None:
+        registry.register(ResearchSkill(research_service))
     return registry

@@ -39,6 +39,23 @@ _KNOWN_TABLES = (
     "approval_executions",
     "content_drafts",
     "content_draft_versions",
+    "missions",
+    "mission_steps",
+    "research_reports",
+    "event_plans",
+    "content_calendar_entries",
+    "contextual_replies",
+    "agent_eval_runs",
+    "attachments",
+    "guild_voice_profiles",
+    "content_feedback",
+    "moderation_policies",
+    "moderation_incidents",
+    "moderation_warnings",
+    "agent_runs",
+    "agent_run_steps",
+    "scheduled_jobs",
+    "reply_approvals",
 )
 
 

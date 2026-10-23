@@ -46,6 +46,11 @@ def main() -> int:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
 
+    for secret in (settings.brave_search_api_key, settings.tavily_api_key):
+        value = secret.get_secret_value().strip()
+        if value:
+            register_secret(value)
+
     bot = CommunityCopilot(settings)
     try:
         bot.run(settings.token, log_handler=None)  # logging is already configured

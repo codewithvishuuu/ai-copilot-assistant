@@ -47,6 +47,9 @@ class _FailingRepo:
     async def delete_conversation_turns(self, **kwargs):
         raise DatabaseError("down")
 
+    async def conversation_turn_stats(self, **kwargs):
+        raise DatabaseError("down")
+
 
 # ------------------------------------------------------------------ roundtrip
 
@@ -58,6 +61,31 @@ async def test_append_then_history_roundtrip(tmp_db):
         Turn("user", "hello"),
         Turn("assistant", "hi there"),
     ]
+
+
+async def test_stats_count_only_the_scope_and_never_expose_text(tmp_db):
+    memory = _memory(Repository(tmp_db))
+    await memory.append(SCOPE, "secret question", "secret answer")
+    await memory.append((500, 2002, 8), "other user", "answer")
+    await memory.append((500, 3003, 7), "other channel", "answer")
+
+    stats = await memory.stats(SCOPE)
+
+    assert stats.turns == 2
+    assert stats.source == "database"
+    assert stats.oldest is not None and stats.newest is not None
+    assert "secret" not in repr(stats)
+
+
+async def test_stats_degrade_to_fallback_counts_when_database_fails():
+    memory = _memory(_FailingRepo())
+    assert await memory.append(SCOPE, "question", "answer") is False
+
+    stats = await memory.stats(SCOPE)
+
+    assert stats.turns == 2
+    assert stats.source == "in-memory fallback"
+    assert stats.oldest is None and stats.newest is None
 
 
 async def test_history_survives_a_real_restart(tmp_path):

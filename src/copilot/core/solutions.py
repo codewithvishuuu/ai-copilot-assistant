@@ -28,6 +28,8 @@ async def propose_solution(
     source_url: str | None,
     actor_id: str,
 ) -> int:
+    thread = await repo.get_thread_row(int(thread_row_id))
+    guild_id = str(thread["guild_id"]) if thread is not None else None
     solution_id = await repo.insert_solution(
         thread_id=thread_row_id,
         body=body,
@@ -43,7 +45,8 @@ async def propose_solution(
         action="solution.proposed",
         target_type="solution",
         target_id=str(solution_id),
-        meta={"thread_row_id": thread_row_id},
+        guild_id=guild_id,
+        meta={"guild_id": guild_id or "", "thread_row_id": thread_row_id},
     )
     return solution_id
 
@@ -93,8 +96,13 @@ async def reject_solution(
         action="solution.rejected",
         target_type="solution",
         target_id=str(solution_id),
+        guild_id=str(guild_id),
         # The note itself stays on the solution row; audit metadata records only
         # whether/how much free text was supplied, never a copy of it.
-        meta={"note_present": True, "note_chars": len(note)} if note else None,
+        meta={
+            "guild_id": str(guild_id),
+            "note_present": bool(note),
+            "note_chars": len(note or ""),
+        },
     )
     return True, "rejected"
