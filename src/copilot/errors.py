@@ -96,6 +96,122 @@ class NotDevUserError(CopilotError):
     default_message = "This command is restricted to the bot's developer."
 
 
+# ------------------------------------------------------------------- approvals
+
+
+class ApprovalNotFoundError(CopilotError):
+    default_message = "No approval request with that id was found for this server."
+
+
+class ApprovalDeniedError(CopilotError):
+    default_message = "You are not allowed to act on this approval request."
+
+
+class ApprovalSelfApprovalError(ApprovalDeniedError):
+    default_message = "The requester cannot approve their own action."
+
+
+class ApprovalConflictError(CopilotError):
+    default_message = "This approval request is not in a state that allows that action."
+
+
+class ApprovalExpiredError(ApprovalConflictError):
+    default_message = "This approval request has expired."
+
+
+class ApprovalBindingError(CopilotError):
+    default_message = "The action does not match the approved request."
+
+
+# ---------------------------------------------------------------- content studio
+
+
+class ContentDraftNotFoundError(CopilotError):
+    default_message = "No content draft with that id was found for this server."
+
+
+class ContentDraftConflictError(CopilotError):
+    default_message = "This content draft is not in a state that allows that action."
+
+
+class ContentValidationError(CopilotError):
+    default_message = (
+        "This content did not pass validation. Fix the findings shown in the draft before "
+        "requesting approval."
+    )
+
+
+class ContentTargetError(CopilotError):
+    default_message = (
+        "The target channel is not available in this server, or I do not have permission "
+        "to post there."
+    )
+
+
+class ContentPublishingDisabledError(CopilotError):
+    default_message = (
+        "Content publishing is disabled on this bot. Approval and review still work; "
+        "ask the operator to enable CONTENT_PUBLISHING_ENABLED."
+    )
+
+
+class ContentPublishError(CopilotError):
+    default_message = "Discord did not confirm the publication, so it was not marked as published."
+
+
+# ------------------------------------------------------------ community pulse
+class PulseRecommendationNotFoundError(CopilotError):
+    default_message = (
+        "That Community Pulse recommendation is no longer reproducible from the current "
+        "guild data. Run /pulse again and pick a current recommendation."
+    )
+
+
+# ------------------------------------------------------ knowledge candidates
+class KnowledgeCandidateNotFoundError(CopilotError):
+    default_message = "No knowledge candidate with that id was found for this server."
+
+
+class KnowledgeCandidateSourceError(CopilotError):
+    default_message = (
+        "The candidate source is missing, invalid, or belongs to a different server."
+    )
+
+
+class KnowledgeCandidateStaleError(CopilotError):
+    default_message = (
+        "This candidate was based on an older summary. Review the latest source before "
+        "approving it."
+    )
+
+
+class KnowledgeCandidateConflictError(CopilotError):
+    default_message = (
+        "This knowledge candidate was already reviewed. Nothing was changed; refresh the "
+        "candidate list to see its current state."
+    )
+
+
+class KnowledgeCandidateDuplicateError(KnowledgeCandidateConflictError):
+    default_message = (
+        "An identical knowledge candidate already exists in this server. Review that "
+        "candidate instead of creating a duplicate."
+    )
+
+
+class KnowledgeDocumentNotFoundError(CopilotError):
+    default_message = (
+        "No approved knowledge document with that id was found for this server."
+    )
+
+
+class KnowledgeDocumentNotApprovedError(CopilotError):
+    default_message = (
+        "Only approved knowledge documents can be purged. Unreviewed content is handled "
+        "by the thread retention or /forget paths."
+    )
+
+
 # ------------------------------------------------------------------- scheduling
 
 

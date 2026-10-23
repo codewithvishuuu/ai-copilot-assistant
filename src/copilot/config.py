@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     ollama_request_timeout_s: float = Field(default=180.0, gt=0)
     ollama_keep_alive: str = "5m"
     ollama_max_tokens: int = Field(default=1024, ge=16, le=8192)
+    # Hard cap on simultaneous Ollama generation calls (queue job + chat by
+    # default). Lower to 1 on very small machines to serialize everything.
+    ollama_max_concurrent: int = Field(default=2, ge=1, le=8)
     model_temperature: float = Field(default=0.3, ge=0.0, le=2.0)
     thinking_enabled: bool = False
     vision_enabled: bool = True
@@ -80,6 +83,32 @@ class Settings(BaseSettings):
     job_timeout_s: float = Field(default=300.0, gt=0)
     fetch_timeout_s: float = Field(default=60.0, gt=0)
 
+    # ----- Conversation (mention-triggered chat) -----
+    conversation_enabled: bool = True
+    conversation_max_turns: int = Field(default=6, ge=1, le=50)
+    conversation_max_chars: int = Field(default=6000, ge=500, le=32000)
+    conversation_ttl_s: int = Field(default=3600, ge=60)
+    conversation_cooldown_s: int = Field(default=10, ge=0)
+    conversation_timeout_s: float = Field(default=120.0, gt=0)
+    conversation_max_tokens: int = Field(default=512, ge=16, le=4096)
+    # Phase 2 persistence: turns are stored in SQLite, scoped per
+    # (guild, channel, user); age-bounded by the daily sweep and row-bounded
+    # per scope on every write.
+    conversation_retention_days: int = Field(default=7, ge=1, le=90)
+    conversation_max_stored_turns: int = Field(default=40, ge=2, le=200)
+    # Chat requests allowed to WAIT for the single in-flight chat generation;
+    # anything beyond this is rejected with a rate-limited notice instead of
+    # piling up unbounded typing/waiting tasks.
+    conversation_max_waiting: int = Field(default=2, ge=0, le=10)
+
+    # Phase 4 KB grounding (design D22): an optional, bounded knowledge-base
+    # block built only from moderator-approved documents, retrieved by the
+    # chat cog via the repository's own FTS search. Dropped before history
+    # when the prompt budget is tight — continuity wins.
+    conversation_grounding_enabled: bool = True
+    conversation_grounding_top_k: int = Field(default=2, ge=1, le=5)
+    conversation_grounding_max_chars: int = Field(default=1200, ge=200, le=4000)
+
     # ----- Storage, privacy, logging -----
     data_dir: Path = Path("data")
     db_filename: str = "copilot.db"
@@ -91,6 +120,18 @@ class Settings(BaseSettings):
     # ----- Insights -----
     insights_min_threads: int = Field(default=5, ge=1)
     insights_window_days: int = Field(default=30, ge=1)
+
+    # ----- Content Studio (Phase 2B) -----
+    # Generation is bounded; publication is a separate, human-approved action.
+    # Publishing is off by default so an operator must opt in after configuring
+    # a server/channel where the bot may post.
+    content_generation_max_chars: int = Field(default=1800, ge=100, le=2000)
+    content_generation_timeout_s: float = Field(default=120.0, gt=0)
+    content_generation_max_tokens: int = Field(default=1024, ge=64, le=4096)
+    content_approval_ttl_s: int = Field(default=3600, ge=60, le=604800)
+    content_context_max_chars: int = Field(default=2000, ge=0, le=8000)
+    content_context_top_k: int = Field(default=3, ge=0, le=5)
+    content_publishing_enabled: bool = False
 
     # ------------------------------------------------------------- validators
 
@@ -128,6 +169,11 @@ class Settings(BaseSettings):
     def _cross_field_checks(self) -> Settings:
         if self.max_messages > self.hard_max_messages:
             raise ValueError("MAX_MESSAGES cannot exceed HARD_MAX_MESSAGES")
+        if self.conversation_max_stored_turns < self.conversation_max_turns * 2:
+            raise ValueError(
+                "CONVERSATION_MAX_STORED_TURNS must be at least twice "
+                "CONVERSATION_MAX_TURNS, or stored history could never fill the prompt"
+            )
         return self
 
     # ------------------------------------------------------------- properties

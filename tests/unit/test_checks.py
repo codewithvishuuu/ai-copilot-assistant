@@ -11,9 +11,11 @@ from copilot.ui.checks import (
     ensure_allowed,
     ensure_dev_user,
     ensure_moderator,
+    ensure_target_thread,
     guild_allowed,
     is_dev_user,
     is_moderator,
+    target_thread_allowed,
 )
 
 # ------------------------------------------------------------------ pure logic
@@ -37,6 +39,16 @@ def test_channel_allowlist_matches_channel_or_parent():
     assert channel_allowed([42], 999, parent_id=42) is True
     assert channel_allowed([2], 7, parent_id=8) is False
     assert channel_allowed([2], None, parent_id=None) is False
+
+
+def test_target_thread_requires_same_guild_and_channel_allowlist():
+    assert target_thread_allowed([500], [], 500, 500, 1001, 42) is True
+    assert target_thread_allowed([500], [42], 500, 500, 1001, 42) is True
+    assert target_thread_allowed([500], [], 500, 999, 1001, 42) is False
+    assert target_thread_allowed([500], [], 500, None, 1001, 42) is False
+    assert target_thread_allowed([500], [], 500, 500, None, 42) is False
+    assert target_thread_allowed([500], [42], 500, 500, 1001, 999) is False
+    assert target_thread_allowed([], [], 500, 500, 1001, 42) is False
 
 
 def test_moderator_by_permission_or_role():
@@ -79,6 +91,15 @@ async def test_ensure_allowed_channel_allowlist_via_parent(tmp_path):
     assert await ensure_allowed(denied, settings) is False
     allowed = FakeInteraction(guild_id=500, channel_id=7777, parent_id=42)
     assert await ensure_allowed(allowed, settings) is True
+
+
+async def test_ensure_target_thread_denies_cross_guild_without_channel_allowlist(tmp_path):
+    settings = fake_settings(tmp_path, guild_allowlist=[500], channel_allowlist=[])
+    interaction = FakeInteraction(guild_id=500)
+    target = SimpleNamespace(id=1001, parent_id=42, guild=SimpleNamespace(id=999))
+
+    assert await ensure_target_thread(interaction, target, settings) is False
+    assert interaction.response.sent[-1]["content"] == "Community Copilot is not enabled in this server or channel."
 
 
 async def test_ensure_moderator(tmp_path):

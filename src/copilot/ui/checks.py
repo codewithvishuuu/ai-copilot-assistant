@@ -40,6 +40,40 @@ def channel_allowed(
     )
 
 
+def target_thread_ids(thread: object) -> tuple[int | None, int | None, int | None]:
+    """Return (guild_id, thread_id, parent_id) from a target thread, defensively."""
+    guild = getattr(thread, "guild", None)
+    guild_id = getattr(guild, "id", None)
+    if guild_id is None:
+        guild_id = getattr(thread, "guild_id", None)
+    return guild_id, getattr(thread, "id", None), getattr(thread, "parent_id", None)
+
+
+def target_thread_allowed(
+    allowed_guild_ids: Sequence[int],
+    allowed_channel_ids: Sequence[int],
+    interaction_guild_id: int | None,
+    target_guild_id: int | None,
+    target_channel_id: int | None,
+    target_parent_id: int | None,
+) -> bool:
+    """An explicit target must be in the interaction guild and pass the channel allowlist."""
+    try:
+        interaction_guild = int(interaction_guild_id) if interaction_guild_id is not None else None
+        target_guild = int(target_guild_id) if target_guild_id is not None else None
+        channel_id = int(target_channel_id) if target_channel_id is not None else None
+        parent_id = int(target_parent_id) if target_parent_id is not None else None
+    except (TypeError, ValueError):
+        return False
+    if interaction_guild is None or target_guild is None or target_guild != interaction_guild:
+        return False
+    if channel_id is None:
+        return False
+    if not guild_allowed(allowed_guild_ids, target_guild):
+        return False
+    return channel_allowed(allowed_channel_ids, channel_id, parent_id)
+
+
 def is_moderator(
     permissions: object | None,
     role_ids: Iterable[int],
@@ -86,6 +120,28 @@ async def ensure_allowed(interaction, settings) -> bool:
         await _deny(interaction, str(NotAllowedError()))
         return False
     return True
+
+
+async def ensure_target_thread(interaction, thread, settings) -> bool:
+    """Deny a target thread outside the interaction guild or channel allowlist."""
+    interaction_guild_id, _channel_id, _parent_id = interaction_ids(interaction)
+    target_guild_id, target_channel_id, target_parent_id = target_thread_ids(thread)
+    if target_thread_allowed(
+        settings.guild_allowlist,
+        settings.channel_allowlist,
+        interaction_guild_id,
+        target_guild_id,
+        target_channel_id,
+        target_parent_id,
+    ):
+        return True
+    log.info(
+        "Target thread check denied (guild=%s channel=%s)",
+        target_guild_id,
+        target_channel_id,
+    )
+    await _deny(interaction, str(NotAllowedError()))
+    return False
 
 
 async def ensure_moderator(interaction, settings) -> bool:

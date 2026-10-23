@@ -42,8 +42,9 @@ async def test_healthy_report_reflects_all_subsystems(tmp_db):
     assert report.ollama.detail is None
 
     assert report.database.ok is True
-    assert report.database.user_version == 2
+    assert report.database.user_version == 7
     assert report.database.counts["threads"] == 0
+    assert report.database.counts["content_drafts"] == 0
     assert report.database.path.endswith("test.db")
 
     assert report.queue.pending == 0

@@ -25,13 +25,17 @@ async def find_related(
     repo: Repository,
     text: str,
     *,
+    guild_id: str,
     exclude_discord_thread_id: str | None = None,
     limit: int = 3,
 ) -> list[RelatedDoc]:
     if not text or not text.strip():
         return []
     rows = await repo.related_docs(
-        text, exclude_discord_thread_id=exclude_discord_thread_id, limit=limit
+        text,
+        guild_id=guild_id,
+        exclude_discord_thread_id=exclude_discord_thread_id,
+        limit=limit,
     )
     return [
         RelatedDoc(

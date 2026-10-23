@@ -9,12 +9,17 @@ import logging
 import discord
 from discord.ext import commands
 
+from .agents.builtin import build_default_registry
+from .agents.orchestrator import SkillOrchestrator
 from .config import Settings
 from .core.analyzer import ThreadAnalyzer
+from .core.approvals import ApprovalService
+from .core.content_studio import ContentStudio
+from .core.publishing import ContentPublisher
 from .core.queue import InferenceQueue
 from .db.database import Database
 from .db.repository import Repository
-from .db.retention import sweep_expired
+from .db.retention import sweep_conversation_turns, sweep_expired
 from .errors import CopilotError, new_error_code
 from .llm.ollama_provider import OllamaProvider
 
@@ -24,7 +29,11 @@ log = logging.getLogger(__name__)
 class CommunityCopilot(commands.Bot):
     def __init__(self, settings: Settings) -> None:
         intents = discord.Intents.none()
-        intents.guilds = True  # slash commands only; no message-content intent is ever needed
+        intents.guilds = True
+        # Message events (non-privileged) power mention-triggered chat. The
+        # privileged Message Content intent stays OFF: Discord only exposes
+        # message text for mentions / DMs / the bot's own messages.
+        intents.guild_messages = True
         super().__init__(
             command_prefix=commands.when_mentioned_or("cc!"),
             intents=intents,
@@ -35,11 +44,30 @@ class CommunityCopilot(commands.Bot):
         self.provider = OllamaProvider(settings)
         self.db = Database(settings.db_path)
         self.repo = Repository(self.db)
+        # Phase 1: an explicit read-only registry, not a model-controlled tool
+        # surface. No command calls it yet; future adapters must use this path.
+        self.skill_registry = build_default_registry(
+            self.repo,
+            insights_window_days=settings.insights_window_days,
+            insights_minimum_threads=settings.insights_min_threads,
+        )
+        self.orchestrator = SkillOrchestrator(
+            self.skill_registry,
+            allowed_guild_ids=settings.guild_allowlist,
+            allowed_channel_ids=settings.channel_allowlist,
+        )
         self.queue = InferenceQueue(
             capacity=settings.queue_capacity,
             per_user_cooldown_s=settings.per_user_cooldown_s,
             per_guild_hourly_limit=settings.per_guild_hourly_limit,
             job_timeout_s=settings.job_timeout_s,
+        )
+        # Phase 2A: backend approval state. Phase 2B uses it for every content
+        # publication; there is still no model tool or generic public executor.
+        self.approval_service = ApprovalService(self.repo)
+        self.content_studio = ContentStudio(self.repo, self.approval_service, settings=settings)
+        self.content_publisher = ContentPublisher(
+            self.content_studio, self.approval_service, self.repo, settings=settings
         )
         self.analyzer = ThreadAnalyzer(self.provider, settings)
         self._retention_task: asyncio.Task | None = None
@@ -50,11 +78,14 @@ class CommunityCopilot(commands.Bot):
         await self.db.connect()
         await self.queue.start()
 
+        from .cogs.content import ContentCog
+        from .cogs.conversation import ConversationCog
         from .cogs.debug import DebugCog
         from .cogs.health import HealthCog
         from .cogs.insights import InsightsCog
         from .cogs.knowledge import KnowledgeCog
         from .cogs.moderation import ModerationCog
+        from .cogs.pulse import PulseCog
         from .cogs.summary import SummaryCog
 
         for cog in (
@@ -64,6 +95,9 @@ class CommunityCopilot(commands.Bot):
             KnowledgeCog(self),
             InsightsCog(self),
             DebugCog(self),
+            ConversationCog(self),
+            ContentCog(self),
+            PulseCog(self),
         ):
             await self.add_cog(cog)
 
@@ -141,9 +175,28 @@ class CommunityCopilot(commands.Bot):
                 counts = await sweep_expired(self.db, days=self.settings.retention_days)
                 if any(counts.values()):
                     log.info("Retention sweep removed: %s", counts)
+                turns = await sweep_conversation_turns(
+                    self.db, days=self.settings.conversation_retention_days
+                )
+                if turns:
+                    log.info("Retention sweep removed %d conversation turn(s)", turns)
+                expired = await self.approval_service.expire_due()
+                if expired:
+                    log.info("Retention sweep expired %d approval request(s)", expired)
             except Exception:  # noqa: BLE001 - sweeps must never kill the bot
                 log.exception("Retention sweep failed")
             await asyncio.sleep(24 * 3600)
+
+    async def on_command_error(self, context: commands.Context, error: commands.CommandError) -> None:
+        """Prefix machinery stays quiet: this bot is slash-only.
+
+        ``command_prefix`` keeps the mention/``cc!`` forms for compatibility, and
+        mention messages now flow through the command parser too (message events
+        are enabled for chat) — unknown "commands" must not spam logs or users.
+        """
+        if isinstance(error, commands.CommandNotFound):
+            return
+        log.warning("Ignoring prefix-command error: %s", type(error).__name__)
 
     async def _on_app_command_error(
         self, interaction: discord.Interaction, error: BaseException

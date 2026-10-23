@@ -6,6 +6,8 @@ transition is audit-logged with actor and timestamp.
 
 from __future__ import annotations
 
+import hashlib
+
 from ..db.repository import Repository
 
 
@@ -27,7 +29,14 @@ async def propose_solution(
     actor_id: str,
 ) -> int:
     solution_id = await repo.insert_solution(
-        thread_id=thread_row_id, body=body, source_url=source_url, actor_id=actor_id
+        thread_id=thread_row_id,
+        body=body,
+        source_url=source_url,
+        actor_id=actor_id,
+        # A manual proposal is a candidate too: store its exact-text hash so the
+        # living-knowledge duplicate check can recognize it later.
+        content_hash=hashlib.sha256(body.encode()).hexdigest(),
+        source_kind="manual",
     )
     await repo.audit(
         actor_id=actor_id,
@@ -40,51 +49,52 @@ async def propose_solution(
 
 
 async def approve_solution(
-    repo: Repository, *, solution_id: int, actor_id: str
+    repo: Repository, *, solution_id: int, guild_id: str, actor_id: str
 ) -> tuple[bool, str]:
-    """Promote a proposed solution into the searchable knowledge base."""
-    row = await repo.get_solution(solution_id)
-    if row is None:
-        return False, "not_found"
-    if row["state"] != "proposed":
-        return False, f"already_{row['state']}"
+    """Promote a guild-owned proposed solution into the searchable knowledge base.
 
-    thread_row = await repo.get_thread_row(int(row["thread_id"]))
-    title = "Solution"
-    if thread_row is not None and thread_row["name"]:
-        title = f"Solution: {thread_row['name']}"
-
-    await repo.set_solution_state(solution_id, state="approved", decided_by=actor_id)
-    await repo.insert_kb_doc(
-        kind="solution",
-        ref_id=solution_id,
-        title=title,
-        body=row["body"],
-        url=row["source_url"] or thread_url(thread_row),
+    The state change, approved KB row, and audit event are one transaction. A
+    summary-backed candidate is refused as stale if its source summary is no
+    longer the latest for that thread.
+    """
+    outcome = await repo.approve_solution_with_kb(
+        solution_id, guild_id=guild_id, actor_id=actor_id
     )
-    await repo.audit(
-        actor_id=actor_id,
-        action="solution.approved",
-        target_type="solution",
-        target_id=str(solution_id),
-    )
-    return True, "approved"
+    return (outcome == "approved", outcome)
 
 
 async def reject_solution(
-    repo: Repository, *, solution_id: int, actor_id: str, note: str | None = None
+    repo: Repository,
+    *,
+    solution_id: int,
+    guild_id: str,
+    actor_id: str,
+    note: str | None = None,
 ) -> tuple[bool, str]:
-    row = await repo.get_solution(solution_id)
+    row = await repo.get_solution_for_guild(solution_id, guild_id=guild_id)
     if row is None:
         return False, "not_found"
     if row["state"] != "proposed":
         return False, f"already_{row['state']}"
-    await repo.set_solution_state(solution_id, state="rejected", decided_by=actor_id, note=note)
+    applied = await repo.set_solution_state(
+        solution_id,
+        state="rejected",
+        decided_by=actor_id,
+        note=note,
+        expected_state="proposed",
+    )
+    if applied != 1:
+        current = await repo.get_solution_for_guild(solution_id, guild_id=guild_id)
+        if current is None:
+            return False, "not_found"
+        return False, f"already_{current['state']}"
     await repo.audit(
         actor_id=actor_id,
         action="solution.rejected",
         target_type="solution",
         target_id=str(solution_id),
-        meta={"note": note} if note else None,
+        # The note itself stays on the solution row; audit metadata records only
+        # whether/how much free text was supplied, never a copy of it.
+        meta={"note_present": True, "note_chars": len(note)} if note else None,
     )
     return True, "rejected"

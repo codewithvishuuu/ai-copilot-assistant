@@ -40,10 +40,15 @@ def moderator_interaction() -> FakeInteraction:
     return FakeInteraction(user=make_user(7, manage_threads=True))
 
 
-async def seed_proposed_solution(db, *, actor_id: str = "9") -> int:
+async def seed_proposed_solution(
+    db, *, actor_id: str = "9", guild_id: str = "500", discord_thread_id: str = "1001"
+) -> int:
     repo = Repository(db)
     thread_id = await repo.upsert_thread(
-        discord_thread_id="1001", guild_id="500", parent_channel_id="42", name="Login is broken"
+        discord_thread_id=discord_thread_id,
+        guild_id=guild_id,
+        parent_channel_id="42",
+        name="Login is broken",
     )
     return await propose_solution(
         repo,
@@ -138,6 +143,23 @@ async def test_reject_unknown_id_acks_then_reports_not_found(tmp_path, tmp_db):
     assert [m["content"] for m in interaction.followup.sent] == [
         "No proposed solution with id `99`."
     ]
+
+
+async def test_reject_cross_guild_solution_is_reported_as_not_found(tmp_path, tmp_db):
+    solution_id = await seed_proposed_solution(
+        tmp_db, guild_id="999", discord_thread_id="9991"
+    )
+    repo = Repository(tmp_db)
+    cog = make_cog(tmp_path, tmp_db)
+    interaction = moderator_interaction()  # guild 500
+
+    await ModerationCog.reject_solution.callback(cog, interaction, solution_id)
+
+    assert interaction.response.deferred is True
+    assert [m["content"] for m in interaction.followup.sent] == [
+        f"No proposed solution with id `{solution_id}`."
+    ]
+    assert (await repo.get_solution(solution_id))["state"] == "proposed"
 
 
 async def test_reject_denied_user_is_answered_without_ack_or_state_change(tmp_path, tmp_db):

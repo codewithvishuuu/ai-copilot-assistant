@@ -291,7 +291,7 @@ def build_kb_search_embeds(query: str, rows: list) -> list[discord.Embed]:
     page = _PagedEmbeds(
         title=f"🔎 Knowledge base: {query}",
         description=f"{len(rows)} result(s). Approved solutions are moderator-verified; "
-        "thread results are AI summaries of past discussions.",
+        "thread results are unreviewed AI summaries of past discussions.",
         url=None,
         color=0x5865F2,
     )
@@ -301,6 +301,15 @@ def build_kb_search_embeds(query: str, rows: list) -> list[discord.Embed]:
         body = clip(row["snippet"] or row["body"] or "", 700)
         if row["url"]:
             body += f"\n[Open source]({row['url']})"
+        try:
+            doc_id = row["id"]
+            approved = bool(row["approved"])
+        except (KeyError, IndexError):
+            doc_id = None
+            approved = False
+        if doc_id is not None:
+            state = "approved" if approved else "unreviewed"
+            body += f"\n`doc {int(doc_id)}` · {state}"
         page.add_field(name, body)
     return page.build()
 

@@ -11,6 +11,7 @@ async def _seed_docs(repo):
     await repo.insert_kb_doc(
         kind="solution",
         ref_id=1,
+        guild_id="500",
         title="Enable WAL",
         body="sqlite database locked fix: enable WAL mode",
         url=None,
@@ -18,6 +19,7 @@ async def _seed_docs(repo):
     await repo.insert_kb_doc(
         kind="solution",
         ref_id=2,
+        guild_id="500",
         title="Retry writes",
         body="database locked errors go away when writes are retried with backoff",
         url=None,
@@ -25,6 +27,7 @@ async def _seed_docs(repo):
     await repo.insert_kb_doc(
         kind="solution",
         ref_id=3,
+        guild_id="500",
         title="Unrelated theming",
         body="css color variables for dark mode",
         url=None,
@@ -34,7 +37,7 @@ async def _seed_docs(repo):
 async def test_find_related_returns_mapped_documents(tmp_db):
     repo = Repository(tmp_db)
     await _seed_docs(repo)
-    related = await find_related(repo, "database locked")
+    related = await find_related(repo, "database locked", guild_id="500")
     assert related
     assert all(isinstance(doc, RelatedDoc) for doc in related)
     assert "Unrelated theming" not in [doc.title for doc in related]
@@ -49,17 +52,22 @@ async def test_find_related_returns_mapped_documents(tmp_db):
 async def test_find_related_ignores_empty_text(tmp_db):
     repo = Repository(tmp_db)
     await _seed_docs(repo)
-    assert await find_related(repo, "") == []
-    assert await find_related(repo, "   \n ") == []
+    assert await find_related(repo, "", guild_id="500") == []
+    assert await find_related(repo, "   \n ", guild_id="500") == []
 
 
 async def test_find_related_respects_limit(tmp_db):
     repo = Repository(tmp_db)
     for index in range(5):
         await repo.insert_kb_doc(
-            kind="solution", ref_id=index, title=f"Doc {index}", body="database locked workaround", url=None
+            kind="solution",
+            ref_id=index,
+            guild_id="500",
+            title=f"Doc {index}",
+            body="database locked workaround",
+            url=None,
         )
-    assert len(await find_related(repo, "database locked", limit=2)) == 2
+    assert len(await find_related(repo, "database locked", guild_id="500", limit=2)) == 2
 
 
 async def test_find_related_excludes_the_source_thread(tmp_db):
@@ -73,11 +81,14 @@ async def test_find_related_excludes_the_source_thread(tmp_db):
     await repo.insert_kb_doc(
         kind="thread",
         ref_id=thread_id,
+        guild_id="500",
         title="Database locked on write",
         body="database locked when writing from two processes",
         url=None,
     )
-    related = await find_related(repo, "database locked", exclude_discord_thread_id="777")
+    related = await find_related(
+        repo, "database locked", guild_id="500", exclude_discord_thread_id="777"
+    )
     assert "Database locked on write" not in [doc.title for doc in related]
 
 

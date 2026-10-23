@@ -55,6 +55,7 @@ class CopilotCog(commands.Cog):
         content: str | None = None,
         embed: discord.Embed | None = None,
         embeds: list[discord.Embed] | None = None,
+        view: discord.ui.View | None = None,
         ephemeral: bool = True,
     ) -> None:
         """Send content/embed(s) as the interaction response or follow-up.
@@ -72,6 +73,8 @@ class CopilotCog(commands.Cog):
             kwargs["embeds"] = embeds
         elif embed is not None:
             kwargs["embed"] = embed
+        if view is not None:
+            kwargs["view"] = view
         try:
             if interaction.response.is_done():
                 await interaction.followup.send(content=content, **kwargs)

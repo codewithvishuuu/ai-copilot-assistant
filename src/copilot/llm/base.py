@@ -8,7 +8,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Protocol, TypedDict, runtime_checkable
+
+
+class ChatMessage(TypedDict):
+    """One entry of a multi-turn chat payload (roles: system/user/assistant)."""
+
+    role: str
+    content: str
 
 
 @dataclass(frozen=True)
@@ -40,8 +47,24 @@ class LLMProvider(Protocol):
         images: Sequence[bytes] = (),
         json_schema: dict | None = None,
         timeout_s: float | None = None,
+        max_tokens: int | None = None,
     ) -> str:
-        """Run one chat completion and return the raw text response."""
+        """Run one single-turn chat completion and return the raw text response."""
+        ...
+
+    async def chat_messages(
+        self,
+        messages: Sequence[ChatMessage],
+        *,
+        images: Sequence[bytes] = (),
+        json_schema: dict | None = None,
+        timeout_s: float | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Run a multi-turn chat completion and return the raw text response.
+
+        ``images`` (when the model supports vision) attach to the last user message.
+        """
         ...
 
     async def health(self) -> ProviderHealth:

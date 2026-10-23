@@ -302,3 +302,163 @@ def test_strip_thinking_removes_thought_blocks_and_prefix():
     assert strip_thinking("<|think|> leading junk") == "leading junk"
     assert strip_thinking("plain text") == "plain text"
     assert strip_thinking("") == ""
+
+
+# ------------------------------------------------------------------ multi-turn
+
+
+async def test_chat_messages_sends_history_and_attaches_images_to_last_user(tmp_path):
+    chat = FakeChatClient()
+    provider = _provider(tmp_path, chat=chat)
+    payload = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"},
+    ]
+    await provider.chat_messages(payload, images=[b"\x89PNG"], max_tokens=128)
+
+    call = chat.chat_calls[0]
+    assert call["messages"][0] == {"role": "system", "content": "sys"}
+    assert call["messages"][3] == {
+        "role": "user",
+        "content": "q2",
+        "images": [base64.b64encode(b"\x89PNG").decode("ascii")],
+    }
+    assert "images" not in call["messages"][1]
+    assert call["options"]["num_predict"] == 128
+    assert call["format"] is None
+    assert call["options"]["num_ctx"] == 4096
+
+
+async def test_chat_messages_does_not_mutate_the_caller_payload(tmp_path):
+    chat = FakeChatClient()
+    provider = _provider(tmp_path, chat=chat)
+    payload = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
+    await provider.chat_messages(payload, images=[b"x"])
+    assert payload[1] == {"role": "user", "content": "u"}  # original untouched
+
+
+async def test_chat_messages_rejects_empty_payload(tmp_path):
+    provider = _provider(tmp_path)
+    with pytest.raises(ValueError):
+        await provider.chat_messages([])
+
+
+async def test_chat_messages_rejects_images_without_user_message(tmp_path):
+    provider = _provider(tmp_path)
+    with pytest.raises(ValueError):
+        await provider.chat_messages([{"role": "system", "content": "s"}], images=[b"x"])
+
+
+async def test_chat_max_tokens_override_is_forwarded(tmp_path):
+    chat = FakeChatClient()
+    provider = _provider(tmp_path, chat=chat)
+    await provider.chat(system="s", user="u", max_tokens=256)
+    assert chat.chat_calls[0]["options"]["num_predict"] == 256
+
+
+# ------------------------------------------- concurrency (OLLAMA_MAX_CONCURRENT)
+
+
+class GatedChatClient(FakeChatClient):
+    """FakeChatClient whose chat calls block until ``release`` is set."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.active = 0
+        self.max_active = 0
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def chat(self, **kwargs):
+        self.chat_calls.append(kwargs)
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        self.entered.set()
+        try:
+            await self.release.wait()
+        finally:
+            self.active -= 1
+        if self.chat_errors:
+            raise self.chat_errors.popleft()
+        return self.chat_response
+
+
+async def test_generation_calls_respect_the_concurrency_cap(tmp_path):
+    chat = GatedChatClient()
+    provider = _provider(tmp_path, chat=chat, ollama_max_concurrent=2)
+
+    tasks = [asyncio.create_task(provider.chat(system="s", user=f"u{i}")) for i in range(3)]
+    for _ in range(200):
+        if chat.max_active == 2:
+            break
+        await asyncio.sleep(0)
+    assert chat.max_active == 2  # the third call waits; it is not run or rejected
+    assert len(chat.chat_calls) == 2
+
+    chat.release.set()
+    await asyncio.gather(*tasks)
+    assert chat.max_active == 2  # the cap held for the whole run
+    assert len(chat.chat_calls) == 3
+
+
+async def test_single_slot_serializes_generations(tmp_path):
+    chat = GatedChatClient()
+    provider = _provider(tmp_path, chat=chat, ollama_max_concurrent=1)
+
+    tasks = [asyncio.create_task(provider.chat(system="s", user=f"u{i}")) for i in range(2)]
+    for _ in range(200):
+        if chat.active == 1:
+            break
+        await asyncio.sleep(0)
+    assert chat.max_active == 1
+    assert len(chat.chat_calls) == 1  # the second call is still waiting for its slot
+
+    chat.release.set()
+    await asyncio.gather(*tasks)
+    assert chat.max_active == 1  # strict serialization
+    assert len(chat.chat_calls) == 2
+
+
+async def test_generation_slot_is_released_after_an_error(tmp_path):
+    chat = FakeChatClient()
+    chat.chat_errors.append(httpx.ConnectError("connection refused"))
+    provider = _provider(tmp_path, chat=chat, ollama_max_concurrent=1)
+
+    with pytest.raises(ProviderUnavailableError):
+        await provider.chat(system="s", user="u")
+
+    chat.chat_response = {"message": {"content": "recovered"}}
+    text = await asyncio.wait_for(provider.chat(system="s", user="u"), timeout=2)
+    assert text == "recovered"
+
+
+async def test_generation_slot_is_released_after_cancellation(tmp_path):
+    chat = GatedChatClient()
+    provider = _provider(tmp_path, chat=chat, ollama_max_concurrent=1)
+
+    task = asyncio.create_task(provider.chat(system="s", user="u"))
+    await chat.entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert chat.active == 0
+
+    chat.release.set()
+    text = await asyncio.wait_for(provider.chat(system="s", user="u"), timeout=2)
+    assert text == "{}"
+
+
+async def test_schema_fallback_does_not_deadlock_with_a_single_slot(tmp_path):
+    chat = FakeChatClient()
+    chat.chat_errors.append(ResponseError("invalid format: schema unsupported", 400))
+    chat.chat_response = {"message": {"content": '{"overview": "ok"}'}}
+    provider = _provider(tmp_path, chat=chat, ollama_max_concurrent=1)
+
+    text = await asyncio.wait_for(
+        provider.chat(system="s", user="u", json_schema={"type": "object"}), timeout=2
+    )
+    assert text == '{"overview": "ok"}'
+    assert len(chat.chat_calls) == 2  # the fallback retry never re-acquires the slot
+    assert chat.chat_calls[1]["format"] == "json"

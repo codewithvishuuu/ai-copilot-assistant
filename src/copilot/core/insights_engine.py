@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -31,10 +32,18 @@ class InsightsResult:
 
 
 async def compute_insights(
-    repo: Repository, *, window_days: int, minimum_threads: int
+    repo: Repository,
+    *,
+    guild_id: str,
+    window_days: int,
+    minimum_threads: int,
+    clock: Callable[[], datetime] | None = None,
 ) -> InsightsResult:
-    since = (datetime.now(UTC) - timedelta(days=window_days)).isoformat(timespec="seconds")
-    rows = await repo.summaries_since(since)
+    now = (clock or (lambda: datetime.now(UTC)))()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    since = (now.astimezone(UTC) - timedelta(days=window_days)).isoformat(timespec="seconds")
+    rows = await repo.summaries_since(since, guild_id=guild_id)
 
     thread_ids = {int(row["thread_id"]) for row in rows}
     total_threads = len(thread_ids)

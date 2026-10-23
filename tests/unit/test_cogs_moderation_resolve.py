@@ -20,11 +20,15 @@ from fakes import FakeInteraction, FakeThread, fake_settings, make_user
 
 from copilot.cogs.moderation import ModerationCog
 from copilot.db.repository import Repository
-from copilot.errors import NotModeratorError
+from copilot.errors import NotAllowedError, NotModeratorError
 
 
-def make_cog(tmp_path, db) -> ModerationCog:
-    return ModerationCog(bot=SimpleNamespace(settings=fake_settings(tmp_path), repo=Repository(db)))
+def make_cog(tmp_path, db, **settings_overrides) -> ModerationCog:
+    return ModerationCog(
+        bot=SimpleNamespace(
+            settings=fake_settings(tmp_path, **settings_overrides), repo=Repository(db)
+        )
+    )
 
 
 def moderator_interaction() -> FakeInteraction:
@@ -87,6 +91,42 @@ async def test_resolve_denied_user_is_answered_without_ack_or_writes(tmp_path, t
 
     assert interaction.response.deferred is None
     assert interaction.response.sent[-1]["content"] == str(NotModeratorError())
+    assert interaction.followup.sent == []
+    counts = await tmp_db.counts()
+    assert counts["threads"] == 0
+    assert counts["solutions"] == 0
+    assert counts["audit_log"] == 0
+
+
+async def test_resolve_cross_guild_target_is_denied_before_ack_or_writes(tmp_path, tmp_db):
+    cog = make_cog(tmp_path, tmp_db)
+    interaction = moderator_interaction()  # guild 500
+    thread = FakeThread(thread_id=910_003, name="Other guild", guild_id=999)
+
+    await ModerationCog.resolve.callback(
+        cog, interaction, thread, "Restart the webhook service.", None
+    )
+
+    assert interaction.response.deferred is None
+    assert interaction.response.sent[-1]["content"] == str(NotAllowedError())
+    assert interaction.followup.sent == []
+    counts = await tmp_db.counts()
+    assert counts["threads"] == 0
+    assert counts["solutions"] == 0
+    assert counts["audit_log"] == 0
+
+
+async def test_resolve_off_allowlist_target_is_denied_before_ack_or_writes(tmp_path, tmp_db):
+    cog = make_cog(tmp_path, tmp_db, channel_allowlist=[42])
+    interaction = moderator_interaction()
+    thread = FakeThread(thread_id=910_004, name="Elsewhere", parent_id=999)
+
+    await ModerationCog.resolve.callback(
+        cog, interaction, thread, "Restart the webhook service.", None
+    )
+
+    assert interaction.response.deferred is None
+    assert interaction.response.sent[-1]["content"] == str(NotAllowedError())
     assert interaction.followup.sent == []
     counts = await tmp_db.counts()
     assert counts["threads"] == 0

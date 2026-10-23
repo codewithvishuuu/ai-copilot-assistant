@@ -27,6 +27,7 @@ Copy-Item .env.example .env
 See [ARCHITECTURE.md](ARCHITECTURE.md). The rule that matters:
 
 - `cogs/` — thin Discord layer (I/O, authorization calls, rendering only).
+- `agents/` — explicit typed read-only skill registry/orchestrator; no model tool surface.
 - `core/`, `llm/`, `db/`, `util/` — pure logic, testable without Discord.
 
 ## Conventions
@@ -42,9 +43,24 @@ See [ARCHITECTURE.md](ARCHITECTURE.md). The rule that matters:
 
 1. Create/extend a cog in `src/copilot/cogs/`.
 2. At the top of the handler: `checks.ensure_allowed(interaction)`.
-3. Wrap slow work in the shared `InferenceQueue` (never call the model directly from a cog).
+3. Use the shared `InferenceQueue` for queued work (summary/debug); chat and Content Studio use their own timeouts plus the provider-level semaphore. Never call `provider.chat` directly from a cog.
 4. Render with `ui/embeds.py` builders (they enforce Discord limits).
 5. Add unit tests with fake interactions/providers.
+
+## Adding a schema migration (recipe)
+
+1. Append a new `-- @migration N` block to `src/copilot/db/schema.sql`; never edit an applied block.
+2. Add the new table to `_KNOWN_TABLES` in `db/database.py` if health counts should include it.
+3. Add repository methods with parameterized SQL and conditional updates for state changes.
+4. Update `test_migrations.py` (v2 → current, additive objects, data/FTS preserved) and any
+   version/count assertions; never point tests at the real `data/copilot.db`.
+
+## Privileged actions
+
+- New side effects must use `core/approvals.py`; do not create a parallel approval path.
+- Call `begin_execution_claim` immediately before the side effect, revalidate the target and actor,
+  record success only with external evidence, and reconcile ambiguous outcomes by evidence rather
+  than retrying. `core/publishing.py` is the reference implementation.
 
 ## Git hygiene
 
