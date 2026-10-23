@@ -43,6 +43,8 @@ class ModerationCog(CopilotCog):
             return
         if not await checks.ensure_moderator(interaction, self.settings):
             return
+        if not await checks.ensure_target_thread(interaction, thread, self.settings):
+            return
         # Ack before the first state change - same class as reject_solution: a stall
         # between here and the reply can miss Discord's 3-second initial-response
         # window while the correction sticks. reply() then uses the follow-up window.
@@ -59,7 +61,8 @@ class ModerationCog(CopilotCog):
             action="status.corrected",
             target_type="thread",
             target_id=str(thread.id),
-            meta={"status": status.value},
+            guild_id=str(interaction.guild_id),
+            meta={"guild_id": str(interaction.guild_id), "status": status.value},
         )
         await self.reply(
             interaction,
@@ -87,6 +90,8 @@ class ModerationCog(CopilotCog):
         if not await checks.ensure_allowed(interaction, self.settings):
             return
         if not await checks.ensure_moderator(interaction, self.settings):
+            return
+        if not await checks.ensure_target_thread(interaction, thread, self.settings):
             return
         # Ack before the first state change (same reason as reject_solution).
         await interaction.response.defer(ephemeral=True)
@@ -125,7 +130,10 @@ class ModerationCog(CopilotCog):
         # Ack before the state change (same reason as reject_solution).
         await interaction.response.defer(ephemeral=True)
         ok, reason = await solutions.approve_solution(
-            self.repo, solution_id=solution_id, actor_id=str(interaction.user.id)
+            self.repo,
+            solution_id=solution_id,
+            guild_id=str(interaction.guild_id),
+            actor_id=str(interaction.user.id),
         )
         if ok:
             message = f"Solution `{solution_id}` approved and added to the knowledge base."
@@ -156,7 +164,11 @@ class ModerationCog(CopilotCog):
         # 15-minute follow-up window (reply() already routes to followup.send).
         await interaction.response.defer(ephemeral=True)
         ok, reason = await solutions.reject_solution(
-            self.repo, solution_id=solution_id, actor_id=str(interaction.user.id), note=note
+            self.repo,
+            solution_id=solution_id,
+            guild_id=str(interaction.guild_id),
+            actor_id=str(interaction.user.id),
+            note=note,
         )
         if ok:
             message = f"Solution `{solution_id}` rejected. It stays stored but is not searchable."

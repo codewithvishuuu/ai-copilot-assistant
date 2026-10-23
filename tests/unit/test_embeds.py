@@ -350,28 +350,41 @@ def test_status_embed_database_problem_and_active_cooldown():
 def test_kb_search_embed_formats_solution_and_thread_rows():
     rows = [
         {
+            "id": 7,
             "kind": "solution",
             "title": "Use WAL",
             "snippet": "enable [WAL] mode",
             "body": "full body",
             "url": "https://kb.invalid/1",
+            "approved": 1,
         },
-        {"kind": "thread", "title": "Old report", "snippet": None, "body": "body text here", "url": None},
+        {
+            "id": 8,
+            "kind": "thread",
+            "title": "Old report",
+            "snippet": None,
+            "body": "body text here",
+            "url": None,
+            "approved": 0,
+        },
     ]
     embed = build_kb_search_embeds("wal", rows)[0]
 
     assert embed.title == "🔎 Knowledge base: wal"
     assert "2 result(s)" in embed.description
     assert "moderator-verified" in embed.description
+    assert "unreviewed AI summaries" in embed.description
 
     solution = _field(embed, "Use WAL")
     assert "✅ solution" in solution.name
     assert "enable [WAL] mode" in solution.value
     assert "[Open source](https://kb.invalid/1)" in solution.value
+    assert "`doc 7` · approved" in solution.value
 
     thread = _field(embed, "Old report")
     assert "🧵 thread" in thread.name
     assert "body text here" in thread.value  # falls back to the body when there is no snippet
+    assert "`doc 8` · unreviewed" in thread.value
 
 
 # ------------------------------------------------------------------- insights

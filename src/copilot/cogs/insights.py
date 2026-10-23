@@ -22,6 +22,7 @@ class InsightsCog(CopilotCog):
             return
         result = await compute_insights(
             self.repo,
+            guild_id=str(interaction.guild_id),
             window_days=self.settings.insights_window_days,
             minimum_threads=self.settings.insights_min_threads,
         )

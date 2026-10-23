@@ -14,7 +14,6 @@ from ..errors import (
     CopilotError,
     DatabaseError,
     JobCancelledError,
-    NotAllowedError,
     new_error_code,
 )
 from ..ui import checks, embeds
@@ -52,9 +51,7 @@ class SummaryCog(CopilotCog):
             )
             return
 
-        parent_id = getattr(target, "parent_id", None)
-        if not checks.channel_allowed(self.settings.channel_allowlist, target.id, parent_id):
-            await self.reply(interaction, content=str(NotAllowedError()))
+        if not await checks.ensure_target_thread(interaction, target, self.settings):
             return
 
         await interaction.response.defer(ephemeral=self.settings.ephemeral_by_default)
@@ -111,6 +108,7 @@ class SummaryCog(CopilotCog):
             related = await find_related(
                 self.repo,
                 duplicate.fingerprint_text(result.analysis),
+                guild_id=result.collected.guild_id,
                 exclude_discord_thread_id=result.collected.thread_id,
             )
         except DatabaseError:
@@ -175,6 +173,7 @@ class SummaryCog(CopilotCog):
         await self.repo.insert_kb_doc(
             kind="thread",
             ref_id=thread_row_id,
+            guild_id=result.collected.guild_id,
             title=result.collected.thread_name or "thread",
             body=text,
             url=result.collected.jump_url or None,

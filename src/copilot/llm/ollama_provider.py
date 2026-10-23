@@ -29,7 +29,7 @@ from ..errors import (
 )
 from ..util.logging import redact
 from ..util.text import strip_control_tokens
-from .base import ModelCapabilities, ProviderHealth
+from .base import ChatMessage, ModelCapabilities, ProviderHealth
 from .capabilities import CapabilityCache
 
 log = logging.getLogger(__name__)
@@ -74,6 +74,12 @@ class OllamaProvider:
         )
         self._cap_cache = CapabilityCache()
         self._schema_supported: bool | None = None  # None = untested, then True/False
+        # Hard bound on simultaneous generation calls (queue job + chat by
+        # default). Health/capability probes are short and deliberately not
+        # gated. See ARCHITECTURE.md for the fairness reasoning.
+        self._generation_gate = asyncio.Semaphore(
+            max(1, int(getattr(settings, "ollama_max_concurrent", 2)))
+        )
 
     # ------------------------------------------------------------------ health
 
@@ -136,24 +142,73 @@ class OllamaProvider:
         images: Sequence[bytes] = (),
         json_schema: dict | None = None,
         timeout_s: float | None = None,
+        max_tokens: int | None = None,
     ) -> str:
-        """One chat completion. Returns raw text (thinking blocks stripped)."""
-        timeout = timeout_s if timeout_s is not None else self._settings.ollama_request_timeout_s
-        messages: list[dict[str, Any]] = [
+        """One single-turn chat completion. Returns raw text (thinking blocks stripped)."""
+        messages: list[ChatMessage] = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
+        return await self.chat_messages(
+            messages,
+            images=images,
+            json_schema=json_schema,
+            timeout_s=timeout_s,
+            max_tokens=max_tokens,
+        )
+
+    async def chat_messages(
+        self,
+        messages: Sequence[ChatMessage],
+        *,
+        images: Sequence[bytes] = (),
+        json_schema: dict | None = None,
+        timeout_s: float | None = None,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Multi-turn chat completion; ``images`` attach to the last user message.
+
+        Generation calls share one semaphore (``OLLAMA_MAX_CONCURRENT``) so the
+        bot never exceeds the configured number of simultaneous Ollama requests.
+        Time spent waiting for a slot is not counted against ``timeout_s``.
+        """
+        timeout = timeout_s if timeout_s is not None else self._settings.ollama_request_timeout_s
+        if not messages:
+            raise ValueError("messages must not be empty")
+        payload: list[dict[str, Any]] = [dict(message) for message in messages]
         if images:
-            messages[-1]["images"] = [base64.b64encode(img).decode("ascii") for img in images]
+            target = next(
+                (i for i in range(len(payload) - 1, -1, -1) if payload[i].get("role") == "user"),
+                None,
+            )
+            if target is None:
+                raise ValueError("images require at least one user message")
+            payload[target]["images"] = [base64.b64encode(img).decode("ascii") for img in images]
 
         options = {
             "temperature": self._settings.model_temperature,
             "num_ctx": self._settings.ollama_num_ctx,
-            "num_predict": self._settings.ollama_max_tokens,
+            "num_predict": max_tokens if max_tokens is not None else self._settings.ollama_max_tokens,
             "top_p": 0.95,
             "top_k": 64,
         }
 
+        async with self._generation_gate:
+            return await self._generate(payload, options, json_schema, timeout_s=timeout)
+
+    async def _generate(
+        self,
+        payload: list[dict[str, Any]],
+        options: dict[str, Any],
+        json_schema: dict | None,
+        *,
+        timeout_s: float,
+    ) -> str:
+        """One generation call (already holding a semaphore slot).
+
+        The schema fallback recurses here — never into ``chat_messages`` — so a
+        single slot is never acquired twice from the same task.
+        """
         format_value: Any = None
         if json_schema is not None:
             format_value = json_schema if self._schema_supported is not False else "json"
@@ -162,17 +217,17 @@ class OllamaProvider:
             response = await asyncio.wait_for(
                 self._client.chat(
                     model=self._settings.ollama_model,
-                    messages=messages,
+                    messages=payload,
                     stream=False,
                     think=bool(self._settings.thinking_enabled),
                     format=format_value,
                     options=options,
                     keep_alive=self._settings.ollama_keep_alive,
                 ),
-                timeout=timeout,
+                timeout=timeout_s,
             )
         except TimeoutError as exc:
-            raise ProviderTimeoutError(detail=f"chat timed out after {timeout:.0f}s") from exc
+            raise ProviderTimeoutError(detail=f"chat timed out after {timeout_s:.0f}s") from exc
         except ResponseError as exc:
             status = getattr(exc, "status_code", None)
             text = redact(str(exc))
@@ -182,13 +237,7 @@ class OllamaProvider:
                 # Schema-constrained decoding rejected -> fall back to plain JSON mode once.
                 log.info("Ollama rejected JSON-schema format; falling back to format='json'")
                 self._schema_supported = False
-                return await self.chat(
-                    system=system,
-                    user=user,
-                    images=images,
-                    json_schema=json_schema,
-                    timeout_s=timeout,
-                )
+                return await self._generate(payload, options, json_schema, timeout_s=timeout_s)
             raise ProviderError(detail=text) from exc
         except (httpx.HTTPError, ConnectionError) as exc:
             raise ProviderUnavailableError(detail=redact(str(exc))[:200]) from exc

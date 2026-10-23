@@ -45,6 +45,14 @@ def redact(text: str) -> str:
     return out
 
 
+def mask_id(value: object) -> str:
+    """Mask a Discord id for logs: keep only the last four digits (``…1234``)."""
+    if value is None:
+        return "?"
+    text = str(value)
+    return f"…{text[-4:]}" if text else "?"
+
+
 class RedactingFormatter(logging.Formatter):
     """Formatter that scrubs secrets from the final formatted string (tracebacks included)."""
 

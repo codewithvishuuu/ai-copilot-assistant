@@ -102,7 +102,7 @@ async def test_correction_writes_status_corrected_audit_entry(tmp_path, tmp_db):
     assert audits[0]["actor_id"] == "7"
     assert audits[0]["target_type"] == "thread"
     assert audits[0]["target_id"] == str(thread.id)
-    assert json.loads(audits[0]["meta_json"]) == {"status": "resolved"}
+    assert json.loads(audits[0]["meta_json"]) == {"status": "resolved", "guild_id": "500"}
     assert audits[0]["created_at"]
 
 
@@ -183,6 +183,36 @@ async def test_denied_outside_allowlist_writes_nothing(tmp_path, tmp_db):
     await ModerationCog.correct_status.callback(cog, interaction, thread, IN_PROGRESS, None)
 
     assert interaction.response.deferred is None  # denials stay direct responses
+    assert interaction.response.sent[-1]["content"] == str(NotAllowedError())
+    counts = await tmp_db.counts()
+    assert counts["corrections"] == 0
+    assert counts["audit_log"] == 0
+    assert counts["threads"] == 0
+
+
+async def test_cross_guild_target_is_denied_before_ack_or_writes(tmp_path, tmp_db):
+    cog = make_cog(tmp_path, tmp_db)
+    interaction = moderator_interaction()  # guild 500
+    thread = FakeThread(thread_id=900_008, name="Other guild", guild_id=999)
+
+    await ModerationCog.correct_status.callback(cog, interaction, thread, IN_PROGRESS, None)
+
+    assert interaction.response.deferred is None
+    assert interaction.response.sent[-1]["content"] == str(NotAllowedError())
+    counts = await tmp_db.counts()
+    assert counts["corrections"] == 0
+    assert counts["audit_log"] == 0
+    assert counts["threads"] == 0
+
+
+async def test_off_allowlist_target_is_denied_before_ack_or_writes(tmp_path, tmp_db):
+    cog = make_cog(tmp_path, tmp_db, channel_allowlist=[42])
+    interaction = moderator_interaction()
+    thread = FakeThread(thread_id=900_009, name="Elsewhere", parent_id=999)
+
+    await ModerationCog.correct_status.callback(cog, interaction, thread, IN_PROGRESS, None)
+
+    assert interaction.response.deferred is None
     assert interaction.response.sent[-1]["content"] == str(NotAllowedError())
     counts = await tmp_db.counts()
     assert counts["corrections"] == 0

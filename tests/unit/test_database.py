@@ -31,7 +31,7 @@ def test_parse_migrations_rejects_duplicates_and_disorder():
         parse_migrations("-- @migration 2\nSELECT 2;\n-- @migration 1\nSELECT 1;")
 
 
-def test_parse_real_schema_has_two_ordered_migrations():
+def test_parse_real_schema_has_nine_ordered_migrations():
     from pathlib import Path
 
     import copilot
@@ -40,16 +40,46 @@ def test_parse_real_schema_has_two_ordered_migrations():
     migrations = parse_migrations(schema_path.read_text(encoding="utf-8"))
     versions = [version for version, _ in migrations]
     assert versions == sorted(versions)
-    assert versions == [1, 2]
+    assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 
 # --------------------------------------------------------------- connect / ops
 
 
 async def test_connect_applies_migrations_and_reports_version(tmp_db):
-    assert await tmp_db.user_version() == 2
+    assert await tmp_db.user_version() == 9
     counts = await tmp_db.counts()
-    for table in ("threads", "messages", "summaries", "corrections", "solutions", "kb_docs", "audit_log"):
+    for table in (
+        "threads",
+        "messages",
+        "summaries",
+        "corrections",
+        "solutions",
+        "kb_docs",
+        "audit_log",
+        "conversation_turns",
+        "approval_requests",
+        "approval_executions",
+        "content_drafts",
+        "content_draft_versions",
+        "missions",
+        "mission_steps",
+        "research_reports",
+        "event_plans",
+        "content_calendar_entries",
+        "contextual_replies",
+        "agent_eval_runs",
+        "attachments",
+        "guild_voice_profiles",
+        "content_feedback",
+        "moderation_policies",
+        "moderation_incidents",
+        "moderation_warnings",
+        "agent_runs",
+        "agent_run_steps",
+        "scheduled_jobs",
+        "reply_approvals",
+    ):
         assert table in counts
         assert counts[table] == 0
 
@@ -66,7 +96,7 @@ async def test_connect_is_idempotent_on_second_instance(tmp_path):
     second = Database(path)
     await second.connect()
     try:
-        assert await second.user_version() == 2
+        assert await second.user_version() == 9
         counts = await second.counts()
         assert counts["audit_log"] == 1  # data survived; migrations did not re-run
     finally:
@@ -159,4 +189,26 @@ async def test_counts_never_leak_sql_injection_from_table_names(tmp_db):
         "solutions",
         "kb_docs",
         "audit_log",
+        "conversation_turns",
+        "approval_requests",
+        "approval_executions",
+        "content_drafts",
+        "content_draft_versions",
+        "missions",
+        "mission_steps",
+        "research_reports",
+        "event_plans",
+        "content_calendar_entries",
+        "contextual_replies",
+        "agent_eval_runs",
+        "attachments",
+        "guild_voice_profiles",
+        "content_feedback",
+        "moderation_policies",
+        "moderation_incidents",
+        "moderation_warnings",
+        "agent_runs",
+        "agent_run_steps",
+        "scheduled_jobs",
+        "reply_approvals",
     }

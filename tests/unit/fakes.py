@@ -41,13 +41,32 @@ class FakeProvider:
         self._thinking = thinking
         self._context_length = context_length
 
-    async def chat(self, *, system, user, images=(), json_schema=None, timeout_s=None):
+    async def chat(self, *, system, user, images=(), json_schema=None, timeout_s=None, max_tokens=None):
         self.calls.append(
             {
                 "system": system,
                 "user": user,
                 "images": list(images),
                 "json_schema": json_schema,
+            }
+        )
+        if not self.responses:
+            return "{}"
+        item = self.responses.pop(0)
+        if isinstance(item, BaseException):
+            raise item
+        return item
+
+    async def chat_messages(self, messages, *, images=(), json_schema=None, timeout_s=None, max_tokens=None):
+        self.calls.append(
+            {
+                "messages": [dict(message) for message in messages],
+                "system": dict(messages[0]).get("content") if messages else None,
+                "user": dict(messages[-1]).get("content") if messages else None,
+                "images": list(images),
+                "json_schema": json_schema,
+                "timeout_s": timeout_s,
+                "max_tokens": max_tokens,
             }
         )
         if not self.responses:
@@ -187,7 +206,7 @@ class FakeThread:
 _MISSING = object()  # mirrors discord.py's MISSING sentinel: omitted vs explicitly passed
 
 
-def _record_send(content, embed, embeds, ephemeral) -> dict:
+def _record_send(content, embed, embeds, ephemeral, view=_MISSING) -> dict:
     # Mirror discord.py's keyword rule (discord/http.py::handle_message_parameters):
     # passing BOTH `embed` and `embeds` raises TypeError — and an explicit None still
     # counts as "passed". Live bug CC-8480 slipped through because this fake used to
@@ -199,6 +218,7 @@ def _record_send(content, embed, embeds, ephemeral) -> dict:
         "embed": None if embed is _MISSING else embed,
         "embeds": None if embeds is _MISSING else embeds,
         "ephemeral": ephemeral,
+        **({"view": view} if view is not _MISSING else {}),
     }
 
 
@@ -212,13 +232,21 @@ class FakeResponse:
         return self._done
 
     async def send_message(
-        self, content=None, *, embed=_MISSING, embeds=_MISSING, ephemeral=False, allowed_mentions=None
+        self,
+        content=None,
+        *,
+        embed=_MISSING,
+        embeds=_MISSING,
+        ephemeral=False,
+        allowed_mentions=None,
+        view=_MISSING,
     ):
-        self.sent.append(_record_send(content, embed, embeds, ephemeral))
+        self.sent.append(_record_send(content, embed, embeds, ephemeral, view))
         self._done = True
 
-    async def defer(self, *, ephemeral=False):
+    async def defer(self, *, ephemeral=False, thinking=False):
         self.deferred = ephemeral
+        self.thinking = thinking
         self._done = True
 
     async def send_modal(self, modal):
@@ -230,8 +258,17 @@ class FakeFollowup:
     def __init__(self) -> None:
         self.sent: list[dict] = []
 
-    async def send(self, content=None, *, embed=_MISSING, embeds=_MISSING, ephemeral=False, allowed_mentions=None):
-        self.sent.append(_record_send(content, embed, embeds, ephemeral))
+    async def send(
+        self,
+        content=None,
+        *,
+        embed=_MISSING,
+        embeds=_MISSING,
+        ephemeral=False,
+        allowed_mentions=None,
+        view=_MISSING,
+    ):
+        self.sent.append(_record_send(content, embed, embeds, ephemeral, view))
 
 
 def make_user(user_id: int = 7, *, manage_threads: bool = False, roles: tuple = ()):
@@ -261,6 +298,102 @@ class FakeInteraction:
         self.followup = FakeFollowup()
 
 
+# ------------------------------------------------------------------ chat fakes
+
+
+BOT_USER_ID = 999
+
+
+def bot_user(bot_id: int = BOT_USER_ID):
+    return SimpleNamespace(
+        id=bot_id, bot=True, display_name="copilot", name="copilot", mention=f"<@{bot_id}>"
+    )
+
+
+class FakeTyping:
+    def __init__(self, channel: FakeChannel) -> None:
+        self._channel = channel
+
+    async def __aenter__(self):
+        self._channel.typing_events.append("start")
+        return None
+
+    async def __aexit__(self, *exc) -> bool:
+        self._channel.typing_events.append("stop")
+        return False
+
+
+class FakeChannel:
+    def __init__(self, *, channel_id: int = 2002, parent_id: int | None = None) -> None:
+        self.id = channel_id
+        self.parent_id = parent_id
+        self.sent: list[dict] = []
+        self.typing_events: list[str] = []
+        self.send_error: BaseException | None = None  # raise on the NEXT (every) send
+
+    def typing(self) -> FakeTyping:
+        return FakeTyping(self)
+
+    async def send(self, content=None, **kwargs):
+        if self.send_error is not None:
+            raise self.send_error
+        self.sent.append({"content": content, **kwargs})
+
+
+def reply_reference(*, author_id: int, resolved: bool = True, message_id: int = 55):
+    """A duck-typed ``discord.MessageReference`` (resolved from the client cache)."""
+    if not resolved:
+        return SimpleNamespace(resolved=None, message_id=message_id)
+    return SimpleNamespace(
+        resolved=SimpleNamespace(id=message_id, author=SimpleNamespace(id=author_id, bot=True)),
+        message_id=message_id,
+    )
+
+
+class FakeChatMessage:
+    """Duck-typed `discord.Message` for conversation-cog tests (guild messages only)."""
+
+    def __init__(
+        self,
+        *,
+        id: int,
+        content: str = "",
+        author_id: int = 7,
+        author_bot: bool = False,
+        guild_id: int | None = 500,
+        channel_id: int = 2002,
+        channel_parent_id: int | None = None,
+        mentions: tuple | list = (),
+        reference=None,
+        attachments: tuple | list = (),
+        type: int = 0,
+        webhook_id: int | None = None,
+    ) -> None:
+        self.id = id
+        self.content = content
+        self.author = SimpleNamespace(id=author_id, bot=author_bot, display_name="tester")
+        self.guild = SimpleNamespace(id=guild_id) if guild_id is not None else None
+        self.channel = FakeChannel(channel_id=channel_id, parent_id=channel_parent_id)
+        self.mentions = list(mentions)
+        self.reference = reference
+        self.attachments = list(attachments)
+        self.type = type
+        self.webhook_id = webhook_id
+        self.replies: list[dict] = []
+        self.reply_error: BaseException | None = None  # raise on the NEXT (every) reply
+
+    async def reply(self, content=None, *, mention_author: bool = True, allowed_mentions=None, **kwargs):
+        if self.reply_error is not None:
+            raise self.reply_error
+        self.replies.append(
+            {
+                "content": content,
+                "mention_author": mention_author,
+                "allowed_mentions": allowed_mentions,
+            }
+        )
+
+
 # --------------------------------------------------------------------- settings
 
 
@@ -273,6 +406,7 @@ def fake_settings(tmp_path, **overrides):
         "max_messages": 50,
         "max_chars": 4000,
         "per_user_cooldown_s": 0,
+        "conversation_cooldown_s": 0,
         "ollama_base_url": "http://127.0.0.1:1",
         "data_dir": tmp_path / "data",
     }

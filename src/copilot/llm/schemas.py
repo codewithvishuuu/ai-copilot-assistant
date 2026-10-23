@@ -266,6 +266,45 @@ class DebugAnalysis(BaseModel):
         return bool(self.likely_causes or self.next_steps or self.notes)
 
 
+class ContentDraftOutput(BaseModel):
+    """Model-generated draft text, plus explicit research/warning signals."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    content: str = ""
+    needs_research: bool = False
+    research_notes: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def _v_content(cls, value: Any) -> str:
+        # Keep line breaks (Discord formatting) but strip model control tokens.
+        if value is None:
+            return ""
+        return strip_control_tokens(str(value)).strip()[:8000]
+
+    @field_validator("needs_research", mode="before")
+    @classmethod
+    def _v_needs_research(cls, value: Any) -> bool:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "y", "required"}
+        return bool(value)
+
+    @field_validator("research_notes", mode="before")
+    @classmethod
+    def _v_research_notes(cls, value: Any) -> str:
+        return _clean_str(value, 500)
+
+    @field_validator("warnings", mode="before")
+    @classmethod
+    def _v_warnings(cls, value: Any) -> list[str]:
+        return _clean_str_list(value, limit_items=5, limit_chars=300)
+
+    def has_content(self) -> bool:
+        return bool(self.content.strip())
+
+
 # ---------------------------------------------------------------- extraction
 
 
@@ -344,6 +383,14 @@ def parse_debug_analysis(raw: str) -> DebugAnalysis:
         ) from exc
 
 
+def parse_content_draft(raw: str) -> ContentDraftOutput:
+    data = _load_object(raw)
+    try:
+        return ContentDraftOutput.model_validate(data)
+    except ValidationError as exc:
+        raise OutputValidationError("The model reply failed schema validation.", detail=str(exc)[:600]) from exc
+
+
 # ------------------------------------------------------- decoding schemas
 
 
@@ -403,4 +450,17 @@ def debug_json_schema() -> dict:
             "notes": {"type": "string"},
         },
         "required": ["likely_causes", "next_steps", "notes"],
+    }
+
+
+def content_draft_json_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "content": {"type": "string"},
+            "needs_research": {"type": "boolean"},
+            "research_notes": {"type": "string"},
+            "warnings": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["content", "needs_research", "research_notes", "warnings"],
     }

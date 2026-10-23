@@ -9,14 +9,33 @@ import logging
 import discord
 from discord.ext import commands
 
+from .agents.builtin import build_default_registry
+from .agents.host import AgentRunService
+from .agents.orchestrator import SkillOrchestrator
 from .config import Settings
 from .core.analyzer import ThreadAnalyzer
+from .core.approvals import ApprovalService
+from .core.content_planning import ContentPlanningService
+from .core.content_studio import ContentStudio
+from .core.evaluation import EvaluationService
+from .core.moderation_ai import ModerationService
+from .core.publishing import ContentPublisher
 from .core.queue import InferenceQueue
+from .core.scheduler import SchedulerService
 from .db.database import Database
 from .db.repository import Repository
-from .db.retention import sweep_expired
+from .db.retention import (
+    sweep_agent_eval_runs,
+    sweep_content_planning,
+    sweep_conversation_turns,
+    sweep_expired,
+    sweep_missions,
+    sweep_research_reports,
+)
 from .errors import CopilotError, new_error_code
 from .llm.ollama_provider import OllamaProvider
+from .missions.service import MissionService
+from .research.service import ResearchService
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +43,11 @@ log = logging.getLogger(__name__)
 class CommunityCopilot(commands.Bot):
     def __init__(self, settings: Settings) -> None:
         intents = discord.Intents.none()
-        intents.guilds = True  # slash commands only; no message-content intent is ever needed
+        intents.guilds = True
+        # Message events (non-privileged) power mention-triggered chat. The
+        # privileged Message Content intent stays OFF: Discord only exposes
+        # message text for mentions / DMs / the bot's own messages.
+        intents.guild_messages = True
         super().__init__(
             command_prefix=commands.when_mentioned_or("cc!"),
             intents=intents,
@@ -35,13 +58,51 @@ class CommunityCopilot(commands.Bot):
         self.provider = OllamaProvider(settings)
         self.db = Database(settings.db_path)
         self.repo = Repository(self.db)
+        # Web research is a configured provider, not a model-chosen tool. The
+        # service returns an explicit "unavailable" outcome when no provider is
+        # configured instead of fabricating sources.
+        self.research_service = ResearchService(self.repo, settings)
+        # Phase 1: an explicit read-only registry, not a model-controlled tool
+        # surface. Missions and research run only through this registry.
+        self.skill_registry = build_default_registry(
+            self.repo,
+            insights_window_days=settings.insights_window_days,
+            insights_minimum_threads=settings.insights_min_threads,
+            research_service=self.research_service,
+        )
+        self.orchestrator = SkillOrchestrator(
+            self.skill_registry,
+            allowed_guild_ids=settings.guild_allowlist,
+            allowed_channel_ids=settings.channel_allowlist,
+        )
         self.queue = InferenceQueue(
             capacity=settings.queue_capacity,
             per_user_cooldown_s=settings.per_user_cooldown_s,
             per_guild_hourly_limit=settings.per_guild_hourly_limit,
             job_timeout_s=settings.job_timeout_s,
         )
+        # Phase 2A: backend approval state. Phase 2B uses it for every content
+        # publication; there is still no model tool or generic public executor.
+        self.approval_service = ApprovalService(self.repo)
+        self.content_studio = ContentStudio(self.repo, self.approval_service, settings=settings)
+        self.content_publisher = ContentPublisher(
+            self.content_studio, self.approval_service, self.repo, settings=settings
+        )
         self.analyzer = ThreadAnalyzer(self.provider, settings)
+        self.mission_service = MissionService(self.repo, self.orchestrator, settings)
+        self.agent_service = AgentRunService(self.repo, self.orchestrator, settings)
+        # Durable jobs may only start read-only agent runs or prepare drafts;
+        # there is deliberately no publish job kind.
+        self.scheduler = SchedulerService(
+            self.repo,
+            settings,
+            agent_service=self.agent_service,
+            content_studio=self.content_studio,
+            provider=self.provider,
+        )
+        self.evaluation_service = EvaluationService(self.repo, self.orchestrator, settings)
+        self.content_planning = ContentPlanningService(self.repo, settings)
+        self.moderation_service = ModerationService(self.repo, self.provider, settings)
         self._retention_task: asyncio.Task | None = None
 
     # ------------------------------------------------------------- lifecycle
@@ -50,11 +111,22 @@ class CommunityCopilot(commands.Bot):
         await self.db.connect()
         await self.queue.start()
 
+        from .cogs.agents import AgentCog
+        from .cogs.automod import AutomodCog
+        from .cogs.content import ContentCog
+        from .cogs.conversation import ConversationCog
         from .cogs.debug import DebugCog
+        from .cogs.evaluation import EvaluationCog
         from .cogs.health import HealthCog
         from .cogs.insights import InsightsCog
         from .cogs.knowledge import KnowledgeCog
+        from .cogs.missions import MissionCog
         from .cogs.moderation import ModerationCog
+        from .cogs.planning import PlanningCog
+        from .cogs.pulse import PulseCog
+        from .cogs.radar import RadarCog
+        from .cogs.research import ResearchCog
+        from .cogs.scheduler import SchedulerCog
         from .cogs.summary import SummaryCog
 
         for cog in (
@@ -64,8 +136,29 @@ class CommunityCopilot(commands.Bot):
             KnowledgeCog(self),
             InsightsCog(self),
             DebugCog(self),
+            ConversationCog(self),
+            ContentCog(self),
+            PulseCog(self),
+            RadarCog(self),
+            ResearchCog(self),
+            MissionCog(self),
+            AgentCog(self),
+            SchedulerCog(self),
+            PlanningCog(self),
+            EvaluationCog(self),
+            AutomodCog(self),
         ):
             await self.add_cog(cog)
+
+        interrupted = await self.mission_service.recover_interrupted()
+        if interrupted:
+            log.warning("Recovered %d mission(s) interrupted by a previous shutdown", interrupted)
+
+        interrupted_agents = await self.agent_service.recover_interrupted()
+        if interrupted_agents:
+            log.warning(
+                "Recovered %d agent run(s) interrupted by a previous shutdown", interrupted_agents
+            )
 
         self.tree.on_error = self._on_app_command_error
 
@@ -91,6 +184,7 @@ class CommunityCopilot(commands.Bot):
         self._retention_task = asyncio.create_task(
             self._retention_loop(), name="copilot-retention"
         )
+        await self.scheduler.start()
 
     async def on_ready(self) -> None:
         user = self.user
@@ -100,6 +194,22 @@ class CommunityCopilot(commands.Bot):
             getattr(user, "id", "?"),
             len(self.guilds),
         )
+        research_reason = self.settings.research_unavailable_reason
+        if research_reason:
+            log.info("Web research is unavailable: %s", research_reason)
+        else:
+            log.info(
+                "Web research is configured (provider=%s)", self.settings.web_search_provider
+            )
+        if not self.settings.content_publishing_enabled:
+            log.info("Content publishing is disabled by configuration (drafts still work)")
+        if self.settings.moderation_enabled:
+            log.warning(
+                "AI moderation is enabled globally but the Message Content intent is OFF: "
+                "only messages Discord delivers (mentions and enabled-intent setups) can be "
+                "assessed. Per-guild policies still need a private report channel."
+            )
+
         health = await self.provider.health()
         if not health.reachable:
             log.warning(
@@ -128,6 +238,9 @@ class CommunityCopilot(commands.Bot):
             with contextlib.suppress(asyncio.CancelledError):
                 await self._retention_task
             self._retention_task = None
+        await self.scheduler.stop()
+        await self.agent_service.shutdown()
+        await self.mission_service.shutdown()
         await self.queue.stop()
         await self.db.close()
         await self.provider.aclose()
@@ -141,9 +254,41 @@ class CommunityCopilot(commands.Bot):
                 counts = await sweep_expired(self.db, days=self.settings.retention_days)
                 if any(counts.values()):
                     log.info("Retention sweep removed: %s", counts)
+                turns = await sweep_conversation_turns(
+                    self.db, days=self.settings.conversation_retention_days
+                )
+                if turns:
+                    log.info("Retention sweep removed %d conversation turn(s)", turns)
+                expired = await self.approval_service.expire_due()
+                if expired:
+                    log.info("Retention sweep expired %d approval request(s)", expired)
+                missions = await sweep_missions(self.db, days=self.settings.retention_days)
+                reports = await sweep_research_reports(self.db, days=self.settings.retention_days)
+                evals = await sweep_agent_eval_runs(self.db, days=self.settings.retention_days)
+                planning = await sweep_content_planning(self.db, days=self.settings.retention_days)
+                if missions or reports or evals or planning:
+                    log.info(
+                        "Retention sweep removed %d mission(s), %d research report(s), "
+                        "%d evaluation(s), %d planning row(s)",
+                        missions,
+                        reports,
+                        evals,
+                        planning,
+                    )
             except Exception:  # noqa: BLE001 - sweeps must never kill the bot
                 log.exception("Retention sweep failed")
             await asyncio.sleep(24 * 3600)
+
+    async def on_command_error(self, context: commands.Context, error: commands.CommandError) -> None:
+        """Prefix machinery stays quiet: this bot is slash-only.
+
+        ``command_prefix`` keeps the mention/``cc!`` forms for compatibility, and
+        mention messages now flow through the command parser too (message events
+        are enabled for chat) — unknown "commands" must not spam logs or users.
+        """
+        if isinstance(error, commands.CommandNotFound):
+            return
+        log.warning("Ignoring prefix-command error: %s", type(error).__name__)
 
     async def _on_app_command_error(
         self, interaction: discord.Interaction, error: BaseException

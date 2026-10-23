@@ -34,6 +34,28 @@ _KNOWN_TABLES = (
     "solutions",
     "kb_docs",
     "audit_log",
+    "conversation_turns",
+    "approval_requests",
+    "approval_executions",
+    "content_drafts",
+    "content_draft_versions",
+    "missions",
+    "mission_steps",
+    "research_reports",
+    "event_plans",
+    "content_calendar_entries",
+    "contextual_replies",
+    "agent_eval_runs",
+    "attachments",
+    "guild_voice_profiles",
+    "content_feedback",
+    "moderation_policies",
+    "moderation_incidents",
+    "moderation_warnings",
+    "agent_runs",
+    "agent_run_steps",
+    "scheduled_jobs",
+    "reply_approvals",
 )
 
 
@@ -73,10 +95,24 @@ class Database:
             self._conn = await asyncio.to_thread(self._connect_sync)
             await self._apply_migrations()
         except (sqlite3.Error, OSError) as exc:
+            await self._discard_connection()
             raise DatabaseError(
                 f"Could not open the local database at {self.path}.", detail=str(exc)
             ) from exc
+        except BaseException:
+            # A failed migration must not leave a half-open connection behind.
+            await self._discard_connection()
+            raise
         log.info("Database ready at %s", self.path)
+
+    async def _discard_connection(self) -> None:
+        conn, self._conn = self._conn, None
+        if conn is None:
+            return
+        try:
+            await asyncio.to_thread(conn.close)
+        except sqlite3.Error:  # pragma: no cover - close failure is not actionable
+            log.warning("Could not close a failed database connection")
 
     def _connect_sync(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -104,8 +140,20 @@ class Database:
                 if version <= current:
                     continue
                 # executescript() commits pending transactions first, then runs the
-                # script as-is; our BEGIN/COMMIT keeps each migration atomic.
-                conn.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = {version};\nCOMMIT;")
+                # script as-is; our BEGIN/COMMIT keeps each migration atomic. On a
+                # mid-block failure, roll back so the previous version and schema
+                # remain intact rather than leaving a new column behind.
+                try:
+                    conn.executescript(
+                        f"BEGIN;\n{script}\nPRAGMA user_version = {version};\nCOMMIT;"
+                    )
+                except sqlite3.Error:
+                    if conn.in_transaction:
+                        try:
+                            conn.execute("ROLLBACK")
+                        except sqlite3.Error:  # pragma: no cover - rollback failure
+                            log.exception("Migration rollback failed at version %s", version)
+                    raise
                 applied.append(version)
             return applied
 
@@ -173,6 +221,28 @@ class Database:
                 raise
 
         await self._guarded(_run)
+
+    async def run_in_transaction_with_result(
+        self, operation: Callable[[sqlite3.Connection], T]
+    ) -> T:
+        """Run ``operation`` inside one transaction and return its result.
+
+        The callback runs in the database worker thread and must only use the
+        supplied connection. Any exception rolls the whole transaction back.
+        """
+
+        def _run() -> T:
+            conn = self._require_conn()
+            conn.execute("BEGIN")
+            try:
+                result = operation(conn)
+                conn.execute("COMMIT")
+                return result
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+
+        return await self._guarded(_run)
 
     async def ping(self) -> bool:
         try:
