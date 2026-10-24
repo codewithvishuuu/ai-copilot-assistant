@@ -1,11 +1,20 @@
-"""Community Copilot entrypoint.
 
-Run from the repository root:
+"""Community Copilot application entrypoint.
 
-    .venv\\Scripts\\python.exe main.py
+This module starts the Discord community management bot.
 
-The bot token is read from the local `.env` file (DISCORD_TOKEN) — it is never
-logged, never printed, and never committed.
+Usage:
+    Windows:
+        .venv\\Scripts\\python.exe main.py
+
+    Linux/macOS:
+        .venv/bin/python main.py
+
+Configuration:
+    Set DISCORD_TOKEN in your local .env file.
+
+Security:
+    Bot credentials must never be logged, printed, or committed.
 """
 
 from __future__ import annotations
