@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Community Copilot
 
 A **local-first AI assistant for technical Discord communities**. It summarizes long forum threads, classifies issue status, extracts unanswered questions and key findings, flags possibly-related older discussions, helps analyze errors and stack traces, runs bounded read-only multi-step missions with live progress, researches the web with cited sources, shows evidence-backed community health observations, evaluates its own safety and tool contracts offline, keeps a moderator-approved solution knowledge base, answers @mention questions in a bounded local chat that remembers recent context across restarts, and drafts community content, calendars, event plans and reply suggestions for human review, delegates bounded read-only work to specialist agent roles, ingests screenshots/logs/documents safely, runs durable analysis or draft jobs, and can flag configured abuse categories for human moderation — running entirely on a local model through [Ollama](https://ollama.com).
@@ -204,3 +205,7 @@ provider-returned URLs are cited. When multiple guilds are allowlisted,
 knowledge-base search/grounding, related items, `/forget`, `/knowledge-purge`, insights,
 missions, research, radar and planning data are isolated per guild. Details and limits:
 [SECURITY.md](SECURITY.md).
+=======
+# ai-copilot-assistant
+An AI-Powered Community Copilot
+>>>>>>> 648756824e91f4875ff1711ee83048d7f69f4b26
