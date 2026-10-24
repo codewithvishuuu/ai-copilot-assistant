@@ -1,0 +1,1439 @@
+2026-10-18 21:23:42,815 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-18 21:23:42,815 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-18 21:23:43,255 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-18 21:23:55,281 INFO    copilot.core.queue: Inference queue stopped
+2026-10-18 21:24:29,735 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-18 21:24:29,736 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-18 21:24:30,122 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-18 21:24:32,841 INFO    copilot.db.database: Applied database migrations: [1, 2]
+2026-10-18 21:24:32,841 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-18 21:24:32,848 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-18 21:24:33,947 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-18 21:24:38,522 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-18 21:24:39,073 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-18 21:27:03,336 ERROR   copilot.bot: Unhandled command error CC-8480: Command 'status' raised an exception: TypeError: Cannot mix embed and embeds keyword arguments.
+Traceback (most recent call last):
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\commands.py", line 858, in _do_call
+    return await self._callback(self.binding, interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\VISHAL KUMAR\community-copilot\src\copilot\cogs\health.py", line 33, in status
+    await self.reply(
+  File "C:\Users\VISHAL KUMAR\community-copilot\src\copilot\cogs\base.py", line 67, in reply
+    await interaction.followup.send(content=content, embed=embed, embeds=embeds, **kwargs)
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\webhook\async_.py", line 1887, in send
+    with handle_message_parameters(
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\http.py", line 168, in handle_message_parameters
+    raise TypeError('Cannot mix embed and embeds keyword arguments.')
+TypeError: Cannot mix embed and embeds keyword arguments.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\tree.py", line 1302, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\commands.py", line 884, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\commands.py", line 873, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'status' raised an exception: TypeError: Cannot mix embed and embeds keyword arguments.
+2026-10-18 21:36:30,572 ERROR   copilot.bot: Unhandled command error CC-8E89: Command 'status' raised an exception: TypeError: Cannot mix embed and embeds keyword arguments.
+Traceback (most recent call last):
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\commands.py", line 858, in _do_call
+    return await self._callback(self.binding, interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\VISHAL KUMAR\community-copilot\src\copilot\cogs\health.py", line 33, in status
+    await self.reply(
+  File "C:\Users\VISHAL KUMAR\community-copilot\src\copilot\cogs\base.py", line 67, in reply
+    # so forward only the form the caller actually used.
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\webhook\async_.py", line 1887, in send
+    with handle_message_parameters(
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\http.py", line 168, in handle_message_parameters
+    raise TypeError('Cannot mix embed and embeds keyword arguments.')
+TypeError: Cannot mix embed and embeds keyword arguments.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\tree.py", line 1302, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\commands.py", line 884, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\VISHAL KUMAR\community-copilot\.venv\Lib\site-packages\discord\app_commands\commands.py", line 873, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'status' raised an exception: TypeError: Cannot mix embed and embeds keyword arguments.
+2026-10-18 21:37:14,484 INFO    copilot.core.queue: Inference queue stopped
+2026-10-18 21:37:14,484 INFO    copilot.db.database: Database connection closed
+2026-10-18 21:37:28,813 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-18 21:37:28,814 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-18 21:37:29,218 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-18 21:37:31,904 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-18 21:37:31,904 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-18 21:37:32,413 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-18 21:37:36,234 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-18 21:37:36,814 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-18 21:46:01,830 INFO    copilot.core.queue: Job a3b088bc queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-18 21:46:02,670 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-18 21:46:03,448 INFO    copilot.core.collector: Collected thread 1561411628099178641: 1 message(s), 2 note(s)
+2026-10-18 21:47:06,115 INFO    copilot.core.queue: Job a3b088bc finished in 64.3s
+2026-10-18 21:56:53,611 INFO    copilot.core.queue: Job 9f56ae5c queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-18 21:56:54,234 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-18 21:56:54,806 INFO    copilot.core.collector: Collected thread 1561411628099178641: 2 message(s), 2 note(s)
+2026-10-18 21:57:30,647 INFO    copilot.core.queue: Job 9f56ae5c finished in 37.0s
+2026-10-19 09:38:18,633 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 09:38:18,634 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 09:38:19,024 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 09:38:20,149 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 09:38:20,149 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 09:38:20,645 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 09:38:23,960 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 09:38:26,298 WARNING copilot.bot: Ollama is not reachable at http://localhost:11434 — /summarize will fail until it is running
+2026-10-19 09:41:57,019 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 09:41:57,033 INFO    copilot.db.database: Database connection closed
+2026-10-19 09:42:48,549 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 09:42:48,549 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 09:42:48,944 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 09:42:49,923 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 09:42:49,923 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 09:42:50,423 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 09:42:53,869 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 09:42:54,553 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 09:44:56,255 INFO    copilot.core.queue: Job 32033df4 queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 09:44:56,823 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-19 09:44:57,482 INFO    copilot.core.collector: Collected thread 1561411628099178641: 2 message(s), 2 note(s)
+2026-10-19 09:45:34,429 INFO    copilot.core.queue: Job 32033df4 finished in 38.2s
+2026-10-19 09:56:13,579 INFO    copilot.core.queue: Job 7880886b queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 09:56:14,090 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-19 09:56:14,721 INFO    copilot.core.collector: Collected thread 1561411628099178641: 3 message(s), 2 note(s)
+2026-10-19 09:57:18,166 INFO    copilot.core.queue: Job 7880886b finished in 64.6s
+2026-10-19 10:00:50,855 WARNING copilot.cogs.base: Could not deliver interaction reply (HTTPException)
+2026-10-19 10:17:03,251 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 10:17:03,287 INFO    copilot.db.database: Database connection closed
+2026-10-19 10:17:06,881 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 10:17:06,882 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 10:17:07,252 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 10:17:08,214 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 10:17:08,214 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 10:17:08,771 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 10:17:12,276 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 10:17:12,966 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 10:20:53,471 INFO    copilot.core.queue: Job 860c1e5f queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 10:20:53,898 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-19 10:20:54,371 INFO    copilot.core.collector: Collected thread 1561411628099178641: 4 message(s), 2 note(s)
+2026-10-19 10:21:01,949 INFO    copilot.core.queue: Job 860c1e5f cancelled (user=1330563524421881887)
+2026-10-19 10:35:38,839 WARNING copilot.cogs.base: Could not deliver interaction reply (HTTPException): 404 Not Found (error code: 10062): Unknown interaction
+2026-10-19 10:36:27,633 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 10:36:27,634 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 10:36:28,035 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 10:36:39,354 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 10:36:39,354 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 10:36:52,360 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 10:36:56,488 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 10:36:57,106 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 10:46:05,232 WARNING discord.gateway: Can't keep up, shard ID None websocket is 15.5s behind.
+2026-10-19 10:57:46,571 WARNING discord.gateway: Can't keep up, shard ID None websocket is 15.4s behind.
+2026-10-19 11:07:08,255 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 11:07:08,270 INFO    copilot.db.database: Database connection closed
+2026-10-19 11:07:13,473 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 11:07:13,474 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 11:07:13,880 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 11:07:14,840 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 11:07:14,840 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 11:07:15,320 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 11:07:18,833 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 11:07:19,425 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 11:24:21,776 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 11:24:21,834 INFO    copilot.db.database: Database connection closed
+2026-10-19 11:24:37,440 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 11:24:37,441 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 11:24:37,819 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 11:24:39,077 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 11:24:39,077 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 11:24:39,517 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 11:24:42,823 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 11:24:43,435 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 11:28:00,664 INFO    copilot.core.queue: Job 2d377fdc queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 11:28:01,138 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-19 11:28:01,808 INFO    copilot.core.collector: Collected thread 1561411628099178641: 4 message(s), 2 note(s)
+2026-10-19 11:29:19,423 INFO    copilot.core.queue: Job 2d377fdc finished in 78.8s
+2026-10-19 11:35:10,002 WARNING discord.gateway: Can't keep up, shard ID None websocket is 10.8s behind.
+2026-10-19 11:39:58,523 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 11:39:58,576 INFO    copilot.db.database: Database connection closed
+2026-10-19 12:07:17,765 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 12:07:17,765 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 12:07:18,132 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 12:07:19,863 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 12:07:19,863 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 12:07:20,404 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 12:07:24,208 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 12:07:24,807 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 12:15:37,056 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 12:15:37,056 INFO    copilot.db.database: Database connection closed
+2026-10-19 12:15:47,405 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 12:15:47,406 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 12:15:47,803 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 12:15:48,747 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 12:15:48,749 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 12:15:49,197 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 12:15:52,653 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 12:15:53,230 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 12:26:40,596 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 12:26:40,639 INFO    copilot.db.database: Database connection closed
+2026-10-19 12:26:43,883 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 12:26:43,884 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 12:26:44,265 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 12:26:45,267 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 12:26:45,272 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 12:26:45,732 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 12:26:49,231 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 12:26:49,819 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 12:27:58,087 INFO    copilot.core.queue: Job caa694f5 queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 12:28:36,895 INFO    copilot.core.queue: Job caa694f5 finished in 38.8s
+2026-10-19 12:29:52,826 INFO    copilot.db.retention: Purged thread rows [1]: {'messages': 4, 'summaries': 5, 'corrections': 0, 'solutions': 3, 'kb_docs': 2}
+2026-10-19 12:29:53,441 INFO    copilot.cogs.knowledge: Thread 1561411628099178641 purged by moderator 1330563524421881887: {'messages': 4, 'summaries': 5, 'corrections': 0, 'solutions': 3, 'kb_docs': 2}
+2026-10-19 12:45:09,463 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 12:45:09,524 INFO    copilot.db.database: Database connection closed
+2026-10-19 12:45:18,242 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 12:45:18,242 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 12:45:18,618 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 12:45:19,665 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 12:45:19,665 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 12:45:20,284 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 12:45:23,609 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 12:45:24,220 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 12:54:33,310 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 12:54:33,313 INFO    copilot.db.database: Database connection closed
+2026-10-19 12:55:33,597 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 12:55:33,598 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 12:55:34,013 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 12:55:35,429 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 12:55:35,430 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 12:55:35,955 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 12:55:39,740 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 12:55:40,308 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 12:58:49,969 INFO    copilot.core.queue: Job 08aa3505 queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 12:58:51,208 INFO    copilot.core.collector: Opening post unavailable for thread 1561641592429744250
+2026-10-19 12:58:51,776 INFO    copilot.core.collector: Collected thread 1561641592429744250: 1 message(s), 2 note(s)
+2026-10-19 12:59:28,646 INFO    copilot.core.queue: Job 08aa3505 finished in 38.7s
+2026-10-19 13:21:03,065 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 13:21:03,143 INFO    copilot.db.database: Database connection closed
+2026-10-19 13:21:13,091 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 13:21:13,092 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 13:21:13,495 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 13:21:16,223 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 13:21:16,224 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 13:21:16,933 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 13:21:22,390 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 13:21:23,016 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 13:53:24,756 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 13:53:24,833 INFO    copilot.db.database: Database connection closed
+2026-10-19 13:53:30,860 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 13:53:30,860 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 13:53:31,256 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 13:53:32,920 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 13:53:32,920 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 13:53:33,583 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 13:53:37,451 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 13:53:38,038 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 13:57:25,912 INFO    copilot.core.queue: Job 2a5b8afe queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 13:57:26,656 INFO    copilot.core.collector: Opening post unavailable for thread 1561641592429744250
+2026-10-19 13:57:27,228 INFO    copilot.core.collector: Collected thread 1561641592429744250: 1 message(s), 2 note(s)
+2026-10-19 13:57:59,148 INFO    copilot.core.queue: Job 2a5b8afe finished in 33.2s
+2026-10-19 13:58:43,271 INFO    copilot.core.queue: Job 0f6654dc queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-19 13:58:43,720 INFO    copilot.core.collector: Opening post unavailable for thread 1561641592429744250
+2026-10-19 13:58:44,210 INFO    copilot.core.collector: Collected thread 1561641592429744250: 2 message(s), 2 note(s)
+2026-10-19 13:59:21,674 INFO    copilot.core.queue: Job 0f6654dc finished in 38.4s
+2026-10-19 14:19:10,596 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 14:19:10,651 INFO    copilot.db.database: Database connection closed
+2026-10-19 14:52:19,085 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 14:52:19,085 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 14:52:19,466 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 14:52:20,591 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 14:52:20,591 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 14:52:21,092 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 14:52:24,688 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 14:52:25,321 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 14:52:59,794 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 14:52:59,802 INFO    copilot.db.database: Database connection closed
+2026-10-19 14:53:04,697 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 14:53:04,697 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 14:53:05,069 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 14:53:06,041 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 14:53:06,041 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 14:53:06,491 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 14:53:09,861 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 14:53:10,463 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 15:19:48,960 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 15:19:49,020 INFO    copilot.db.database: Database connection closed
+2026-10-19 15:20:06,557 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 15:20:06,558 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 15:20:06,947 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 15:20:09,552 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 15:20:09,553 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 15:20:09,577 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, message content intent=off)
+2026-10-19 15:20:10,378 INFO    copilot.bot: Synced 11 command(s) to test guild 1340196738606301215
+2026-10-19 15:20:14,399 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 15:20:15,038 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 15:20:57,598 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-19 15:20:57,598 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 15:21:25,287 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=219 chunks=1 history=0 images=0 delivered=True)
+2026-10-19 15:22:22,208 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 15:22:29,459 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=193 chunks=1 history=2 images=0 delivered=True)
+2026-10-19 15:23:22,951 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 15:23:38,724 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=321 chunks=1 history=4 images=1 delivered=True)
+2026-10-19 15:54:33,648 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 15:54:33,648 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 15:54:34,066 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 15:54:35,116 INFO    copilot.db.database: Applied database migrations: [3]
+2026-10-19 15:54:35,116 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 15:54:35,116 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 15:54:35,148 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, memory=sqlite (retention=7d), message content intent=off)
+2026-10-19 15:54:35,701 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-19 15:54:39,130 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 15:54:39,742 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 15:55:50,980 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-19 15:55:50,982 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 15:56:10,184 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=29 chunks=1 history=0 images=0 delivered=True persisted=True)
+2026-10-19 15:56:26,355 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 15:56:26,356 INFO    copilot.db.database: Database connection closed
+2026-10-19 15:56:36,618 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 15:56:36,618 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 15:56:37,018 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 15:56:38,276 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 15:56:38,276 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 15:56:38,313 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, memory=sqlite (retention=7d), message content intent=off)
+2026-10-19 15:56:38,785 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-19 15:56:42,218 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 15:56:42,834 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 15:56:49,497 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-19 15:56:49,497 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 15:56:53,123 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=55 chunks=1 history=2 images=0 delivered=True persisted=True)
+2026-10-19 15:58:41,798 INFO    copilot.cogs.conversation: chat: history cleared (user=…1887 channel=…9465 db_turns=4 memory_existed=True)
+2026-10-19 15:59:16,597 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 15:59:25,411 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=104 chunks=1 history=0 images=0 delivered=True persisted=True)
+2026-10-19 16:29:28,040 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 16:29:28,040 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 16:29:28,420 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 16:29:29,399 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 16:29:29,399 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 16:29:29,421 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-19 16:29:29,866 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-19 16:29:33,135 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 16:29:33,748 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 16:30:54,544 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-19 16:30:54,545 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 16:31:39,249 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=1871 chunks=1 sent=1 history=2 images=0 delivered=True persisted=True)
+2026-10-19 16:34:35,545 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 16:34:59,498 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=1847 chunks=1 sent=1 history=4 images=0 delivered=True persisted=True)
+2026-10-19 16:40:27,118 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 16:40:27,119 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 16:40:27,500 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 16:40:28,757 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 16:40:28,757 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 16:40:28,789 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-19 16:40:29,330 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-19 16:40:32,566 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 16:40:33,184 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 16:40:50,252 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-19 16:40:50,254 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 16:40:50,294 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 16:42:06,283 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=5379 chunks=3 sent=3 history=6 images=0 delivered=True persisted=True)
+2026-10-19 16:42:23,771 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=1877 chunks=1 sent=1 history=6 images=0 delivered=True persisted=True)
+2026-10-19 16:49:24,418 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 16:49:24,464 INFO    copilot.db.database: Database connection closed
+2026-10-19 16:49:33,590 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 16:49:33,590 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 16:49:33,990 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 16:49:35,173 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 16:49:35,173 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 16:49:35,195 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-19 16:49:35,623 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-19 16:49:38,841 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 16:49:39,427 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 16:55:20,313 INFO    copilot.core.queue: Inference queue stopped
+2026-10-19 16:55:20,318 INFO    copilot.db.database: Database connection closed
+2026-10-19 16:55:28,135 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-19 16:55:28,135 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-19 16:55:28,559 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-19 16:55:29,714 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-19 16:55:29,714 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-19 16:55:29,757 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-19 16:55:30,202 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-19 16:55:33,502 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-19 16:55:34,110 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-19 16:57:13,002 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-19 16:57:13,004 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 16:57:27,696 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 16:57:57,287 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=1428 chunks=1 sent=1 history=10 images=0 delivered=True persisted=True)
+2026-10-19 16:57:57,996 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 16:58:20,587 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=1306 chunks=1 sent=1 history=12 images=0 delivered=True persisted=True)
+2026-10-19 17:04:28,423 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 17:04:52,612 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=74 chunks=1 sent=1 history=12 images=0 delivered=True persisted=True)
+2026-10-19 17:04:56,923 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 17:04:59,723 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=63 chunks=1 sent=1 history=12 images=0 delivered=True persisted=True)
+2026-10-19 17:05:27,608 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 17:05:29,760 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=37 chunks=1 sent=1 history=12 images=0 delivered=True persisted=True)
+2026-10-19 17:10:04,718 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 17:10:18,994 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=397 chunks=1 sent=1 history=12 images=0 delivered=True persisted=True)
+2026-10-19 17:10:29,107 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 17:10:35,976 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=310 chunks=1 sent=1 history=12 images=0 delivered=True persisted=True)
+2026-10-19 17:23:51,153 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 17:24:12,712 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-19 17:24:19,275 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v1 user=…1887 chars=4 chunks=1 sent=1 history=12 images=0 delivered=True persisted=True)
+2026-10-22 10:05:37,595 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-22 10:05:37,597 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-22 10:05:38,062 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-22 10:05:39,058 INFO    copilot.db.database: Applied database migrations: [1, 2, 3]
+2026-10-22 10:05:39,058 INFO    copilot.db.database: Database ready at data\copilot.smoke.db
+2026-10-22 10:05:39,058 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-22 10:05:39,096 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-22 10:05:39,725 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-22 10:05:43,152 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-22 10:05:43,767 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-22 10:06:24,865 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-22 10:06:24,867 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-22 10:07:08,446 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=32 chunks=1 sent=1 history=0 images=0 grounded=0 delivered=True persisted=True)
+2026-10-22 10:08:03,831 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-22 10:08:08,143 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=132 chunks=1 sent=1 history=2 images=0 grounded=0 delivered=True persisted=True)
+2026-10-22 10:08:38,623 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-22 10:08:41,928 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=138 chunks=1 sent=1 history=4 images=0 grounded=0 delivered=True persisted=True)
+2026-10-22 10:22:01,828 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:22:21,533 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=213 chunks=1 sent=1 history=0 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 10:24:57,209 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:25:04,249 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=143 chunks=1 sent=1 history=2 images=0 grounded=0 delivered=True persisted=True)
+2026-10-22 10:38:25,951 INFO    copilot.core.queue: Inference queue stopped
+2026-10-22 10:38:25,981 INFO    copilot.db.database: Database connection closed
+2026-10-22 10:38:46,816 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-22 10:38:46,816 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-22 10:38:47,182 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-22 10:38:48,106 INFO    copilot.db.database: Database ready at data\copilot.smoke.db
+2026-10-22 10:38:48,106 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-22 10:38:48,129 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-22 10:38:48,548 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-22 10:38:51,825 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-22 10:38:52,443 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-22 10:39:49,474 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-22 10:39:49,482 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:40:09,739 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=68 chunks=1 sent=1 history=4 images=0 grounded=0 delivered=True persisted=True)
+2026-10-22 10:40:50,790 INFO    copilot.core.queue: Inference queue stopped
+2026-10-22 10:40:50,806 INFO    copilot.db.database: Database connection closed
+2026-10-22 10:41:03,239 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-22 10:41:03,239 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-22 10:41:03,598 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-22 10:41:04,990 INFO    copilot.db.database: Database ready at data\copilot.smoke.db
+2026-10-22 10:41:04,990 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-22 10:41:05,030 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-22 10:41:05,494 INFO    copilot.bot: Synced 12 command(s) to test guild 1340196738606301215
+2026-10-22 10:41:08,667 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 1 guild(s) visible
+2026-10-22 10:41:09,258 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-22 10:41:40,003 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-22 10:41:40,004 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:41:44,960 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=194 chunks=1 sent=1 history=6 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 10:45:56,412 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:45:59,715 INFO    copilot.cogs.conversation: chat: model error (user=…1887 type=ProviderUnavailableError delivered=True): The local AI server (Ollama) is not reachable. Start Ollama on the machine running this bot and try again.
+2026-10-22 10:47:16,959 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:47:38,918 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=194 chunks=1 sent=1 history=8 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 10:51:18,918 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:51:24,920 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=165 chunks=1 sent=1 history=10 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 10:57:05,442 INFO    copilot.cogs.conversation: chat: history cleared (user=…1887 channel=…3057 db_turns=12 memory_existed=True)
+2026-10-22 10:57:15,247 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 10:57:38,921 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=206 chunks=1 sent=1 history=0 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 11:00:26,442 INFO    copilot.cogs.conversation: chat: history cleared (user=…1887 channel=…3057 db_turns=2 memory_existed=True)
+2026-10-22 11:05:43,153 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 11:06:03,845 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=206 chunks=1 sent=1 history=0 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 11:12:54,199 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 11:13:17,540 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=144 chunks=1 sent=1 history=2 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 11:22:16,529 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…3057)
+2026-10-22 11:22:56,520 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v2 user=…1887 chars=1832 chunks=1 sent=1 history=4 images=0 grounded=1 delivered=True persisted=True)
+2026-10-22 12:50:17,452 WARNING discord.gateway: Can't keep up, shard ID None websocket is 10.1s behind.
+2026-10-22 12:53:46,530 WARNING discord.gateway: Can't keep up, shard ID None websocket is 12.9s behind.
+2026-10-24 09:03:42,966 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-24 09:03:42,968 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-24 09:03:44,202 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-24 09:03:46,646 INFO    copilot.db.database: Applied database migrations: [4, 5, 6, 7, 8, 9, 10]
+2026-10-24 09:03:46,646 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-24 09:03:46,646 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-24 09:03:46,909 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-24 09:03:49,391 INFO    copilot.bot: Synced 71 command(s) to test guild 1340196738606301215
+2026-10-24 09:03:53,038 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 09:03:53,041 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 09:03:53,043 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 09:03:53,803 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 09:06:33,670 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-24 09:06:35,527 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:06:36,239 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:07:21,796 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=6 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 09:07:49,934 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:08:14,830 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=44 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 09:08:53,172 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:09:06,420 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=41 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 09:12:49,973 INFO    copilot.core.queue: Job f5c2b8ff queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-24 09:12:50,524 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-24 09:12:51,221 INFO    copilot.core.queue: Job f5c2b8ff failed: EmptyThreadError
+2026-10-24 09:12:51,221 INFO    copilot.cogs.summary: Summarize job f5c2b8ff failed: That thread has no usable messages to summarize.
+2026-10-24 09:15:38,557 ERROR   discord.client: Attempting a reconnect in 0.99s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-d.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 09:16:48,652 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-24 09:16:48,657 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-24 09:16:50,115 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-24 09:16:52,402 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-24 09:16:52,408 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-24 09:16:52,631 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-24 09:16:58,411 INFO    copilot.bot: Synced 71 command(s) to test guild 1340196738606301215
+2026-10-24 09:17:01,679 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 09:17:01,679 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 09:17:01,679 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 09:17:02,480 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 09:17:12,610 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-24 09:17:12,610 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:17:48,973 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=6 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 09:24:36,761 INFO    copilot.core.queue: Inference queue stopped
+2026-10-24 09:24:36,801 INFO    copilot.db.database: Database connection closed
+2026-10-24 09:32:57,052 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-24 09:32:57,068 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-24 09:32:58,332 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-24 09:32:59,604 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-24 09:32:59,604 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-24 09:32:59,758 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-24 09:33:00,405 INFO    copilot.bot: Synced 71 command(s) to test guild 1340196738606301215
+2026-10-24 09:33:04,318 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 09:33:04,318 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 09:33:04,318 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 09:33:05,054 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 09:34:33,167 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-24 09:34:33,171 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:34:34,055 INFO    copilot.cogs.conversation: chat: help sent (user=…1887 delivered=True)
+2026-10-24 09:35:20,503 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:36:00,093 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=38 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 09:37:09,165 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 09:37:30,094 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=208 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 09:39:58,214 ERROR   discord.client: Attempting a reconnect in 1.42s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 09:39:59,814 ERROR   discord.client: Attempting a reconnect in 3.27s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 10:13:51,432 ERROR   discord.client: Attempting a reconnect in 1.89s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 10:13:53,674 ERROR   discord.client: Attempting a reconnect in 4.00s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 10:14:09,006 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 10:14:09,011 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 10:14:09,011 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 10:14:09,658 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 10:17:32,150 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:18:10,796 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=6 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:23:24,307 INFO    copilot.core.queue: Inference queue stopped
+2026-10-24 10:23:24,368 INFO    copilot.db.database: Database connection closed
+2026-10-24 10:30:54,596 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-24 10:30:54,596 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-24 10:30:55,672 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-24 10:30:57,008 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-24 10:30:57,008 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-24 10:30:57,134 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-24 10:30:57,903 INFO    copilot.bot: Synced 71 command(s) to test guild 1340196738606301215
+2026-10-24 10:31:01,350 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 10:31:01,350 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 10:31:01,350 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 10:31:02,141 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 10:36:01,025 INFO    copilot.core.queue: Job 76fbd2c7 queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-24 10:36:01,533 INFO    copilot.core.collector: Opening post unavailable for thread 1561411628099178641
+2026-10-24 10:36:02,053 INFO    copilot.core.queue: Job 76fbd2c7 failed: EmptyThreadError
+2026-10-24 10:36:02,053 INFO    copilot.cogs.summary: Summarize job 76fbd2c7 failed: That thread has no usable messages to summarize.
+2026-10-24 10:37:34,431 INFO    copilot.core.queue: Job ebfc8c28 queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-24 10:37:35,025 INFO    copilot.core.collector: Opening post unavailable for thread 1562686610095743057
+2026-10-24 10:37:35,591 INFO    copilot.core.collector: Collected thread 1562686610095743057: 10 message(s), 2 note(s)
+2026-10-24 10:38:56,833 INFO    copilot.core.queue: Job ebfc8c28 finished in 82.4s
+2026-10-24 10:40:56,606 INFO    copilot.cogs.conversation: chat: message events are flowing (first event of this run)
+2026-10-24 10:40:56,606 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:41:19,130 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=415 chunks=1 sent=1 history=12 images=0 grounded=1 delivered=True persisted=True)
+2026-10-24 10:41:37,955 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:42:11,647 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=89 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:42:47,357 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:43:03,143 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=107 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:43:14,386 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:43:30,379 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=298 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:43:41,006 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:43:53,698 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=74 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:46:27,657 INFO    copilot.core.queue: Job ab207a16 queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-24 10:46:28,227 INFO    copilot.core.collector: Opening post unavailable for thread 1562686610095743057
+2026-10-24 10:46:28,960 INFO    copilot.core.collector: Collected thread 1562686610095743057: 20 message(s), 3 note(s)
+2026-10-24 10:47:47,180 INFO    copilot.core.queue: Job ab207a16 failed: OutputValidationError
+2026-10-24 10:47:47,182 INFO    copilot.cogs.summary: Summarize job ab207a16 failed: The model reply was structurally valid but contained no content.
+2026-10-24 10:48:42,180 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:48:58,890 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=67 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:49:47,531 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:50:04,340 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=75 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:50:43,214 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 10:50:59,314 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=102 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 10:56:27,312 INFO    copilot.agents.orchestrator: Skill provider timed out (skill=content.brief)
+2026-10-24 11:03:24,664 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:04:10,520 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=760 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:05:12,631 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:05:47,289 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=1338 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:13:33,282 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:13:34,327 INFO    copilot.cogs.conversation: chat: help sent (user=…1887 delivered=True)
+2026-10-24 11:23:21,201 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:23:24,117 INFO    copilot.core.attachments: chat: attachments processed (files=1 images=1 persisted=1)
+2026-10-24 11:24:13,418 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=485 chunks=1 sent=1 history=12 images=1 grounded=0 delivered=True persisted=True)
+2026-10-24 11:26:19,988 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:26:55,002 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=909 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:27:43,826 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:28:06,274 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=340 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:28:33,033 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:29:09,453 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=1375 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:31:38,047 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:32:02,467 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=515 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:38:12,783 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:38:53,058 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=472 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:39:02,345 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:39:47,945 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=288 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:40:24,159 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:40:50,811 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=294 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:46:05,588 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 11:46:56,978 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=1172 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 11:51:22,447 ERROR   discord.client: Attempting a reconnect in 1.46s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 11:51:24,028 ERROR   discord.client: Attempting a reconnect in 2.51s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 11:51:26,565 ERROR   discord.client: Attempting a reconnect in 5.88s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 11:51:32,446 ERROR   discord.client: Attempting a reconnect in 14.59s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 11:51:47,038 ERROR   discord.client: Attempting a reconnect in 27.43s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 11:59:39,837 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 12:00:20,423 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=246 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 12:00:55,536 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 12:01:19,919 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=195 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 12:05:54,922 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 12:06:15,239 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=182 chunks=1 sent=1 history=12 images=0 grounded=0 delivered=True persisted=True)
+2026-10-24 12:11:06,977 INFO    copilot.cogs.conversation: chat: trigger detected (reason=mention user=…1887 guild=…1215 channel=…9465)
+2026-10-24 12:11:56,191 INFO    copilot.core.attachments: chat: attachments processed (files=1 images=1 persisted=1)
+2026-10-24 12:13:01,502 INFO    copilot.cogs.conversation: chat: replied (persona=chat-v3 user=…1887 chars=494 chunks=1 sent=1 history=12 images=1 grounded=0 delivered=True persisted=True)
+2026-10-24 12:20:50,669 INFO    copilot.core.queue: Job 0e0ccd82 queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-24 12:20:51,288 INFO    copilot.core.collector: Opening post unavailable for thread 1562686610095743057
+2026-10-24 12:20:52,623 INFO    copilot.core.collector: Collected thread 1562686610095743057: 22 message(s), 3 note(s)
+2026-10-24 12:22:11,573 INFO    copilot.core.queue: Job 0e0ccd82 failed: OutputValidationError
+2026-10-24 12:22:11,573 INFO    copilot.cogs.summary: Summarize job 0e0ccd82 failed: The model reply was structurally valid but contained no content.
+2026-10-24 12:22:40,372 INFO    copilot.core.queue: Inference queue stopped
+2026-10-24 12:22:40,451 INFO    copilot.db.database: Database connection closed
+2026-10-24 12:23:03,306 WARNING discord.client: PyNaCl is not installed, voice will NOT be supported
+2026-10-24 12:23:03,306 WARNING discord.client: davey is not installed, voice will NOT be supported
+2026-10-24 12:23:04,549 WARNING discord.ext.commands.bot: Privileged message content intent is missing, commands may not work as expected.
+2026-10-24 12:23:06,147 INFO    copilot.db.database: Database ready at data\copilot.db
+2026-10-24 12:23:06,149 INFO    copilot.core.queue: Inference queue started (capacity=5)
+2026-10-24 12:23:06,263 INFO    copilot.cogs.conversation: chat: ready (trigger=mention or reply-to-bot, guilds=1, channels=all channels of allowed guilds, cooldown=10s, max_turns=6, max_waiting=2, memory=sqlite (retention=7d), message content intent=off)
+2026-10-24 12:23:07,558 INFO    copilot.bot: Synced 71 command(s) to test guild 1340196738606301215
+2026-10-24 12:23:11,177 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 12:23:11,179 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 12:23:11,179 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 12:23:12,043 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 12:30:12,056 INFO    copilot.core.queue: Job f39845ed queued (user=1330563524421881887 guild=1340196738606301215 pending=1)
+2026-10-24 12:30:12,606 INFO    copilot.core.collector: Opening post unavailable for thread 1562686610095743057
+2026-10-24 12:30:14,062 INFO    copilot.core.collector: Collected thread 1562686610095743057: 10 message(s), 2 note(s)
+2026-10-24 12:31:46,461 INFO    copilot.core.queue: Job f39845ed finished in 94.4s
+2026-10-24 12:52:33,543 ERROR   discord.client: Attempting a reconnect in 1.12s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-b.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 12:52:34,922 ERROR   discord.client: Attempting a reconnect in 2.88s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-b.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 12:52:37,853 ERROR   discord.client: Attempting a reconnect in 5.39s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11004] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-b.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 12:53:19,152 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 12:53:19,152 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 12:53:19,152 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 12:53:19,830 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 13:16:08,667 ERROR   discord.client: Attempting a reconnect in 15.06s
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1592, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1202, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1233, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\resolver.py", line 47, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 868, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\HP\AppData\Local\Programs\Python\Python311\Lib\asyncio\tasks.py", line 489, in wait_for
+    return fut.result()
+           ^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 1312, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 900, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\client.py", line 854, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 665, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1263, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\community-copilot\.venv\Lib\site-packages\aiohttp\connector.py", line 1598, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-b.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-10-24 14:02:47,539 INFO    copilot.bot: Logged in as Community Copilot#6433 (id=1561347691164995675), 2 guild(s) visible
+2026-10-24 14:02:47,544 INFO    copilot.bot: Web research is unavailable: Web research is disabled (WEB_RESEARCH_ENABLED=false).
+2026-10-24 14:02:47,545 INFO    copilot.bot: Content publishing is disabled by configuration (drafts still work)
+2026-10-24 14:02:48,158 INFO    copilot.bot: Model gemma4:e2b ready (vision=True, context=None)
+2026-10-24 14:03:02,468 INFO    copilot.core.queue: Inference queue stopped
+2026-10-24 14:03:02,509 INFO    copilot.db.database: Database connection closed

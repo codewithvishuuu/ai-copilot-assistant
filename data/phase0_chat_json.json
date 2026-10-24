@@ -1,0 +1,18 @@
+{
+  "model": "gemma4:e2b",
+  "created_at": "2026-10-18T12:56:48.8953993Z",
+  "message": {
+    "role": "assistant",
+    "content": "",
+    "thinking": "Thinking Process:\n1.  **Analyze the Request:** The user wants a JSON object with two specific keys:\n    *   `ok`: Must be a boolean, specifically `true`.\n    *   `note`: Must be a string, maximum 8 words, about SQLite.\n2.  **Determine Content for `note` (SQLite topic):** Needs to be concise and relevant to SQLite.\n3.  **Draft the `note"
+  },
+  "done": true,
+  "done_reason": "length",
+  "total_duration": 4188927500,
+  "load_duration": 109137000,
+  "prompt_eval_count": 47,
+  "prompt_eval_cached_count": 0,
+  "prompt_eval_duration": 447304000,
+  "eval_count": 96,
+  "eval_duration": 3430007000
+}

@@ -1,0 +1,17 @@
+{
+  "model": "gemma4:e2b",
+  "created_at": "2026-10-18T12:56:40.4366641Z",
+  "message": {
+    "role": "assistant",
+    "content": "A Discord thread is a focused conversation that lives within a specific channel."
+  },
+  "done": true,
+  "done_reason": "stop",
+  "total_duration": 36954259200,
+  "load_duration": 34351411200,
+  "prompt_eval_count": 39,
+  "prompt_eval_cached_count": 0,
+  "prompt_eval_duration": 522066000,
+  "eval_count": 15,
+  "eval_duration": 930909000
+}
