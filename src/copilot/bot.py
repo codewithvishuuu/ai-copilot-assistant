@@ -9,7 +9,7 @@ import logging
 import discord
 from discord.ext import commands
 
-from .agents.builtin import build_default_registry
+from .agents.builtin import QualityChecksSkill, build_default_registry
 from .agents.host import AgentRunService
 from .agents.orchestrator import SkillOrchestrator
 from .config import Settings
@@ -26,16 +26,19 @@ from .db.database import Database
 from .db.repository import Repository
 from .db.retention import (
     sweep_agent_eval_runs,
+    sweep_attachments,
     sweep_content_planning,
     sweep_conversation_turns,
     sweep_expired,
     sweep_missions,
+    sweep_reply_approvals,
     sweep_research_reports,
 )
 from .errors import CopilotError, new_error_code
 from .llm.ollama_provider import OllamaProvider
 from .missions.service import MissionService
 from .research.service import ResearchService
+from .ui.checks import is_moderator
 
 log = logging.getLogger(__name__)
 
@@ -63,12 +66,21 @@ class CommunityCopilot(commands.Bot):
         # configured instead of fabricating sources.
         self.research_service = ResearchService(self.repo, settings)
         # Phase 1: an explicit read-only registry, not a model-controlled tool
-        # surface. Missions and research run only through this registry.
+        # surface. Missions and research run only through this registry. Do not
+        # register a skill whose provider is disabled: agent/mission plans must
+        # report it as unavailable instead of advertising a green capability.
+        research_registry_service = (
+            None if settings.research_unavailable_reason is not None else self.research_service
+        )
+        self.moderation_service = ModerationService(self.repo, self.provider, settings)
         self.skill_registry = build_default_registry(
             self.repo,
             insights_window_days=settings.insights_window_days,
             insights_minimum_threads=settings.insights_min_threads,
-            research_service=self.research_service,
+            research_service=research_registry_service,
+            moderation_service=self.moderation_service,
+            provider=self.provider,
+            settings=settings,
         )
         self.orchestrator = SkillOrchestrator(
             self.skill_registry,
@@ -99,11 +111,40 @@ class CommunityCopilot(commands.Bot):
             agent_service=self.agent_service,
             content_studio=self.content_studio,
             provider=self.provider,
+            authorize=self._scheduled_requester_authorized,
         )
         self.evaluation_service = EvaluationService(self.repo, self.orchestrator, settings)
+        # Registered after the service exists; the skill shares the same checks as
+        # /evaluate but never persists a report or writes audit.
+        self.skill_registry.register(QualityChecksSkill(self.evaluation_service))
         self.content_planning = ContentPlanningService(self.repo, settings)
-        self.moderation_service = ModerationService(self.repo, self.provider, settings)
         self._retention_task: asyncio.Task | None = None
+
+    async def _scheduled_requester_authorized(
+        self, guild_id: int, channel_id: int, requester_id: int
+    ) -> bool:
+        """Live moderator recheck for a scheduled job's original requester.
+
+        The scheduler calls this at execution time; cached permissions from the
+        scheduling interaction are never trusted. A confirmed missing member
+        denies; an unavailable guild/member lookup raises so the job is retried.
+        """
+        guild = self.get_guild(int(guild_id))
+        if guild is None:
+            # The gateway cache is empty at boot (and briefly on reconnect). Raise
+            # so the scheduler retries instead of recording a permanent revocation.
+            raise RuntimeError("guild cache is not ready")
+        member = guild.get_member(int(requester_id))
+        if member is None:
+            try:
+                member = await guild.fetch_member(int(requester_id))
+            except discord.NotFound:
+                return False  # the requester really left this guild
+            except Exception as exc:  # noqa: BLE001 - transient lookup failure
+                raise RuntimeError("member lookup failed") from exc
+        permissions = getattr(member, "guild_permissions", None)
+        roles = [role.id for role in getattr(member, "roles", []) if hasattr(role, "id")]
+        return is_moderator(permissions, roles, self.settings.moderator_role_ids)
 
     # ------------------------------------------------------------- lifecycle
 
@@ -184,7 +225,6 @@ class CommunityCopilot(commands.Bot):
         self._retention_task = asyncio.create_task(
             self._retention_loop(), name="copilot-retention"
         )
-        await self.scheduler.start()
 
     async def on_ready(self) -> None:
         user = self.user
@@ -194,6 +234,10 @@ class CommunityCopilot(commands.Bot):
             getattr(user, "id", "?"),
             len(self.guilds),
         )
+        # Start due-job execution only after the gateway cache is populated.
+        # setup_hook runs before connect(), so starting there made boot-time jobs
+        # fail their live moderator check and become permanently revoked.
+        await self.scheduler.start()
         research_reason = self.settings.research_unavailable_reason
         if research_reason:
             log.info("Web research is unavailable: %s", research_reason)
@@ -206,8 +250,9 @@ class CommunityCopilot(commands.Bot):
         if self.settings.moderation_enabled:
             log.warning(
                 "AI moderation is enabled globally but the Message Content intent is OFF: "
-                "only messages Discord delivers (mentions and enabled-intent setups) can be "
-                "assessed. Per-guild policies still need a private report channel."
+                "only messages that explicitly mention the bot can be assessed. Ordinary "
+                "channel messages are out of scope. Per-guild policies still need a private "
+                "report channel."
             )
 
         health = await self.provider.health()
@@ -259,9 +304,17 @@ class CommunityCopilot(commands.Bot):
                 )
                 if turns:
                     log.info("Retention sweep removed %d conversation turn(s)", turns)
+                attachments = await sweep_attachments(
+                    self.repo, days=self.settings.attachment_retention_days
+                )
+                if attachments:
+                    log.info("Retention sweep removed %d attachment row(s)", attachments)
                 expired = await self.approval_service.expire_due()
                 if expired:
                     log.info("Retention sweep expired %d approval request(s)", expired)
+                reply_expired = await sweep_reply_approvals(self.repo)
+                if reply_expired:
+                    log.info("Retention sweep expired %d reply approval(s)", reply_expired)
                 missions = await sweep_missions(self.db, days=self.settings.retention_days)
                 reports = await sweep_research_reports(self.db, days=self.settings.retention_days)
                 evals = await sweep_agent_eval_runs(self.db, days=self.settings.retention_days)

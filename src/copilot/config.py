@@ -114,7 +114,6 @@ class Settings(BaseSettings):
     db_filename: str = "copilot.db"
     retention_days: int = Field(default=90, ge=1)
     log_level: str = "INFO"
-    debug_log_content: bool = False
     ephemeral_by_default: bool = True
 
     # ----- Insights -----
@@ -153,7 +152,6 @@ class Settings(BaseSettings):
     # Disabled by default; enabling requires an explicit per-guild policy and a
     # private moderator report channel. No auto-ban/timeout exists at all.
     moderation_enabled: bool = False
-    moderation_report_channel_id: int | None = None
     moderation_repeat_window_days: int = Field(default=7, ge=1, le=90)
     moderation_timeout_s: float = Field(default=30.0, gt=0, le=120)
     moderation_max_tokens: int = Field(default=300, ge=64, le=1024)

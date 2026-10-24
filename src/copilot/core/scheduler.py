@@ -9,6 +9,13 @@ publication. Scheduled public publishing is not a job kind at all.
 Delivery guarantees are intentionally bounded: a job is claimed atomically,
 failed jobs retry with backoff up to ``scheduler_max_attempts``, interruption by
 restart returns jobs to pending, and every transition is guild-scoped in audit.
+
+Cancellation is cooperative. The runner keeps the in-flight asyncio task for a
+job, so ``/schedule-cancel`` both marks the row cancelled and cancels the task.
+Finalisation is conditional on the row still being ``running``: a cancellation
+that wins the race can never afterwards be overwritten by (or audited as) a
+success or failure. If the process stops with a job still running, the row is
+left untouched and startup recovery returns it to pending.
 """
 
 from __future__ import annotations
@@ -17,7 +24,7 @@ import asyncio
 import json
 import logging
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta, tzinfo
 from enum import Enum
 from typing import Any
@@ -33,11 +40,13 @@ from ..db.repository import Repository
 from ..errors import (
     AgentPlanError,
     ApprovalDeniedError,
+    ContentTargetError,
     ScheduledJobConflictError,
     ScheduledJobNotFoundError,
     ScheduleError,
 )
 from ..llm.base import LLMProvider
+from ..ui.checks import channel_allowed, guild_allowed
 from ..util.text import sanitize_for_prompt, strip_control_tokens, truncate
 
 log = logging.getLogger(__name__)
@@ -47,7 +56,22 @@ MAX_IDEMPOTENCY_CHARS = 100
 MAX_PAYLOAD_CHARS = 12_000
 _ALL_PERMISSIONS = frozenset({SkillPermission.guild_member, SkillPermission.moderator})
 _TERMINAL = {"succeeded", "failed", "cancelled"}
-_PERMANENT_FAILURES = {"guild_not_allowed", "invalid_payload", "unsupported_kind"}
+_PERMANENT_FAILURES = {
+    "guild_not_allowed",
+    "channel_not_allowed",
+    "authorization_revoked",
+    "authorization_unavailable",
+    "content_target_revoked",
+    "invalid_payload",
+    "unsupported_kind",
+}
+_AUTHORIZATION_FAILURES = {
+    "guild_not_allowed",
+    "channel_not_allowed",
+    "authorization_revoked",
+    "authorization_unavailable",
+    "content_target_revoked",
+}
 
 
 class ScheduledJobKind(str, Enum):
@@ -128,6 +152,7 @@ class SchedulerService:
         agent_service: AgentRunService | None = None,
         content_studio: Any | None = None,
         provider: LLMProvider | None = None,
+        authorize: Callable[[int, int, int], Awaitable[bool]] | None = None,
         clock: Callable[[], datetime] = _utc_now,
     ) -> None:
         self._repo = repo
@@ -135,28 +160,43 @@ class SchedulerService:
         self._agent_service = agent_service
         self._content_studio = content_studio
         self._provider = provider
+        # Injected live authorization check: (guild_id, channel_id, requester_id).
+        # Stored payload permissions are never trusted at execution time.
+        self._authorize = authorize
         self._clock = clock
         self._task: asyncio.Task | None = None
+        self._running: dict[int, asyncio.Task] = {}
 
     # -------------------------------------------------------------- lifecycle
 
     async def start(self) -> None:
-        if not self._settings.scheduler_enabled or self._task is not None:
+        if self._task is not None:
             return
+        # Recovery always runs, even when scheduling is disabled: a restart
+        # must never leave a job stuck in 'running'. When disabled the recovered
+        # jobs stay pending until an operator enables the scheduler.
         recovered = await self.recover_interrupted()
         if recovered:
             log.warning("Recovered %d interrupted scheduled job(s)", recovered)
+        if not self._settings.scheduler_enabled:
+            return
         self._task = asyncio.create_task(self._loop(), name="copilot-scheduler")
 
     async def stop(self) -> None:
-        task, self._task = self._task, None
-        if task is None:
-            return
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        loop_task, self._task = self._task, None
+        if loop_task is not None:
+            loop_task.cancel()
+            try:
+                await loop_task
+            except asyncio.CancelledError:
+                pass
+        # Cancel in-flight work but do not rewrite its row: shutdown recovery
+        # returns every still-running job to pending on the next start.
+        running = list(self._running.values())
+        for job_task in running:
+            job_task.cancel()
+        if running:
+            await asyncio.wait(running, timeout=5.0)
 
     async def _loop(self) -> None:
         while True:
@@ -361,6 +401,13 @@ class SchedulerService:
         if not await self._repo.cancel_scheduled_job(
             job_id, guild_id=str(guild_id), now=_iso(self._clock())
         ):
+            # Another transition (typically completion) won the race. Report
+            # the real terminal state instead of claiming a cancellation.
+            refreshed = await self._repo.get_scheduled_job(job_id, guild_id=str(guild_id))
+            if refreshed is None:
+                raise ScheduledJobNotFoundError()
+            if str(refreshed["status"]) in _TERMINAL:
+                return self._view(refreshed)
             raise ScheduledJobConflictError()
         await self._repo.audit(
             actor_id=str(actor_id),
@@ -370,6 +417,7 @@ class SchedulerService:
             guild_id=str(guild_id),
             meta={"guild_id": str(guild_id), "kind": str(row["job_kind"])},
         )
+        await self._cancel_running_task(job_id)
         updated = await self._repo.get_scheduled_job(job_id, guild_id=str(guild_id))
         if updated is None:
             raise ScheduledJobNotFoundError()
@@ -394,7 +442,20 @@ class SchedulerService:
             guild_id=str(guild_id),
             meta={"guild_id": str(guild_id), "calendar_entry_id": int(entry_id)},
         )
+        await self._cancel_running_task(job_id)
         return True
+
+    async def _cancel_running_task(self, job_id: int) -> None:
+        """Cancel one in-flight job task and wait briefly for it to unwind.
+
+        The row has already been marked cancelled by the caller, so a task that
+        ignores cancellation for a while still cannot finalise as success.
+        """
+        task = self._running.get(int(job_id))
+        if task is None or task.done():
+            return
+        task.cancel()
+        await asyncio.wait({task}, timeout=5.0)
 
     # ----------------------------------------------------------------- runner
 
@@ -403,46 +464,76 @@ class SchedulerService:
         rows = await self._repo.due_scheduled_jobs(
             now, limit=int(self._settings.scheduler_tick_batch)
         )
-        executed = 0
+        tasks: list[asyncio.Task] = []
         for row in rows:
             job_id = int(row["id"])
             if not await self._repo.claim_scheduled_job(job_id, now=now):
                 continue
+            task = asyncio.create_task(
+                self._run_claimed(row), name=f"copilot-scheduled-job-{job_id}"
+            )
+            self._running[job_id] = task
+            tasks.append(task)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        return len(tasks)
+
+    async def _run_claimed(self, row: Any) -> None:
+        job_id = int(row["id"])
+        try:
             await self._execute(row)
-            executed += 1
-        return executed
+        finally:
+            self._running.pop(job_id, None)
 
     async def _execute(self, row: Any) -> None:
         job_id = int(row["id"])
         guild_id = str(row["guild_id"])
         kind = str(row["job_kind"])
         attempts = int(row["attempts"]) + 1
-        if int(guild_id) not in set(self._settings.guild_allowlist):
-            await self._fail_or_retry(
-                job_id, guild_id, kind, attempts, int(row["max_attempts"]), "guild_not_allowed"
-            )
+        max_attempts = int(row["max_attempts"])
+        try:
+            payload = self._payload(row)
+        except _JobFailure as exc:
+            await self._fail_or_retry(job_id, guild_id, kind, attempts, max_attempts, exc.code)
+            return
+        try:
+            await self._authorize_execution(row, payload)
+        except _JobFailure as exc:
+            if exc.code in _AUTHORIZATION_FAILURES:
+                await self._audit_authorization_revoked(job_id, guild_id, kind, payload, exc.code)
+            await self._fail_or_retry(job_id, guild_id, kind, attempts, max_attempts, exc.code)
             return
         try:
             async with asyncio.timeout(float(self._settings.scheduler_job_timeout_s)):
-                reference = await self._dispatch(row)
+                reference = await self._dispatch(row, payload)
+        except asyncio.CancelledError:
+            # Cancellation is owned by cancel_job/stop: the row is already
+            # cancelled (or will be recovered after restart). Never finalise.
+            raise
         except TimeoutError:
             await self._fail_or_retry(
-                job_id, guild_id, kind, attempts, int(row["max_attempts"]), "timeout"
+                job_id, guild_id, kind, attempts, max_attempts, "timeout"
             )
         except _JobFailure as exc:
+            if exc.code in _AUTHORIZATION_FAILURES:
+                await self._audit_authorization_revoked(job_id, guild_id, kind, payload, exc.code)
             await self._fail_or_retry(
-                job_id, guild_id, kind, attempts, int(row["max_attempts"]), exc.code
+                job_id, guild_id, kind, attempts, max_attempts, exc.code
             )
         except Exception:  # noqa: BLE001 - one job must not stop the batch
             log.exception("Scheduled job %s failed", job_id)
             await self._fail_or_retry(
-                job_id, guild_id, kind, attempts, int(row["max_attempts"]), "failed"
+                job_id, guild_id, kind, attempts, max_attempts, "failed"
             )
         else:
             finished = _iso(self._clock())
-            await self._repo.finish_scheduled_job(
+            if not await self._repo.finish_scheduled_job(
                 job_id, status="succeeded", last_error=None, finished_at=finished
-            )
+            ):
+                # A cancellation (or another transition) won the race; the row
+                # must not be audited as a success.
+                log.info("Scheduled job %s finished after losing a state race", job_id)
+                return
             await self._repo.audit(
                 actor_id=str(row["created_by"]),
                 action="scheduler.job_succeeded",
@@ -456,6 +547,80 @@ class SchedulerService:
                     "result": truncate(reference, 120),
                 },
             )
+
+    async def _authorize_execution(self, row: Any, payload: dict[str, Any]) -> None:
+        """Revalidate allowlists and live moderator status before any work.
+
+        The payload's stored permissions are informational only: the requester
+        must still be authorised right now, through the injected callback.
+        """
+        guild_id = int(str(row["guild_id"]))
+        kind = str(row["job_kind"])
+        try:
+            if kind == ScheduledJobKind.content_draft.value:
+                target = payload["target"]
+                if not isinstance(target, dict):
+                    raise TypeError("target must be an object")
+                target_guild_id = int(target["guild_id"])
+                channel_id = int(target["channel_id"])
+                parent_id = None
+                requester_id = int(payload["requester_id"])
+                if target_guild_id != guild_id:
+                    raise ValueError("target guild mismatch")
+            else:
+                channel_id = int(payload["channel_id"])
+                requester_id = int(payload["requester_id"])
+                parent = payload.get("parent_id")
+                parent_id = None if parent is None else int(parent)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise _JobFailure("invalid_payload") from exc
+
+        if not guild_allowed(self._settings.guild_allowlist, guild_id):
+            raise _JobFailure("guild_not_allowed")
+        if not channel_allowed(self._settings.channel_allowlist, channel_id, parent_id):
+            raise _JobFailure("channel_not_allowed")
+        if self._authorize is None:
+            # Fail closed: without a live check the stored requester state
+            # cannot be trusted.
+            raise _JobFailure("authorization_unavailable")
+        try:
+            allowed = await self._authorize(guild_id, channel_id, requester_id)
+        except Exception:  # noqa: BLE001 - denial must fail closed
+            log.warning("Scheduled job authorization check failed (job=%s)", int(row["id"]))
+            # A transient REST/cache failure is retryable; a confirmed missing
+            # member returns False below and stays a permanent revocation.
+            raise _JobFailure("authorization_temporarily_unavailable") from None
+        if not allowed:
+            raise _JobFailure("authorization_revoked")
+
+    async def _audit_authorization_revoked(
+        self,
+        job_id: int,
+        guild_id: str,
+        kind: str,
+        payload: dict[str, Any],
+        error_code: str,
+    ) -> None:
+        meta = {
+            "guild_id": guild_id,
+            "kind": kind,
+            "error_code": error_code,
+        }
+        target = payload.get("target")
+        if isinstance(target, dict):
+            meta["channel_id"] = str(target.get("channel_id") or "")
+        elif payload.get("channel_id") is not None:
+            meta["channel_id"] = str(payload.get("channel_id"))
+        if payload.get("requester_id") is not None:
+            meta["requester_id"] = str(payload.get("requester_id"))
+        await self._repo.audit(
+            actor_id="scheduler",
+            action="scheduler.job_authorization_revoked",
+            target_type="scheduled_job",
+            target_id=str(job_id),
+            guild_id=guild_id,
+            meta=meta,
+        )
 
     async def _fail_or_retry(
         self,
@@ -488,9 +653,12 @@ class SchedulerService:
                     },
                 )
                 return
-        await self._repo.finish_scheduled_job(
+        if not await self._repo.finish_scheduled_job(
             job_id, status="failed", last_error=code, finished_at=_iso(now)
-        )
+        ):
+            # Cancelled (or finalised elsewhere) while this attempt was unwinding.
+            log.info("Scheduled job %s failure not recorded after a state race", job_id)
+            return
         await self._repo.audit(
             actor_id="scheduler",
             action="scheduler.job_failed",
@@ -505,9 +673,8 @@ class SchedulerService:
             },
         )
 
-    async def _dispatch(self, row: Any) -> str:
+    async def _dispatch(self, row: Any, payload: dict[str, Any]) -> str:
         kind = str(row["job_kind"])
-        payload = self._payload(row)
         job_id = int(row["id"])
         guild_id = str(row["guild_id"])
         if kind in (ScheduledJobKind.agent_run.value, ScheduledJobKind.digest_collect.value):
@@ -577,6 +744,14 @@ class SchedulerService:
                 source_kind="scheduled",
                 source_ref=f"job:{job_id}",
             )
+        except ApprovalDeniedError as exc:
+            # Guild allowlist or target guild changed after the job was queued.
+            log.warning("Scheduled draft authorization revoked (job=%s)", job_id)
+            raise _JobFailure("authorization_revoked") from exc
+        except ContentTargetError as exc:
+            # Target channel removed from the allowlist, deleted, or unwritable.
+            log.warning("Scheduled draft target revoked (job=%s)", job_id)
+            raise _JobFailure("content_target_revoked") from exc
         except Exception as exc:  # noqa: BLE001 - classification only, no text persisted
             log.warning("Scheduled draft generation failed (job=%s): %s", job_id, type(exc).__name__)
             raise _JobFailure("content_generation_failed") from exc

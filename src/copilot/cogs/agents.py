@@ -14,6 +14,7 @@ import discord
 from discord import app_commands
 
 from ..agents.host import AgentRunStatus, AgentRunView, HostMode
+from ..core.attachments import AttachmentService
 from ..ui import checks
 from ..ui.agents import agent_control_embed, agent_list_embed, agent_run_embed
 from .base import CopilotCog
@@ -32,6 +33,7 @@ _MODES = [
     app_commands.Choice(name="Draft preparation", value="draft_prep"),
     app_commands.Choice(name="Moderation review", value="moderation"),
     app_commands.Choice(name="Troubleshooting triage", value="triage"),
+    app_commands.Choice(name="Quality evaluation", value="evaluation"),
 ]
 
 
@@ -62,9 +64,40 @@ class AgentRunProgressView(discord.ui.View):
 
 
 class AgentCog(CopilotCog):
+    def __init__(self, bot) -> None:
+        super().__init__(bot)
+        self.attachments = AttachmentService(self.repo, self.settings)
+
     @property
     def agents(self):
         return self.bot.agent_service
+
+    async def _host_image(
+        self, attachment: discord.Attachment
+    ) -> tuple[tuple[bytes, ...], str | None]:
+        """Prepare one optional screenshot for the host vision step."""
+        if not self.settings.attachments_enabled:
+            return (), "Screenshot ignored: attachment reading is disabled in configuration."
+        if not self.settings.vision_enabled:
+            return (), "Screenshot ignored: image analysis is disabled in configuration."
+        try:
+            capabilities = await self.provider.capabilities()
+        except Exception:  # noqa: BLE001 - capability failure must fall back honestly
+            return (), (
+                "Screenshot ignored: the configured model's vision capability could not be "
+                "verified. Text-only triage will run."
+            )
+        if not capabilities.exists or not capabilities.supports_vision:
+            return (), (
+                "Screenshot ignored: the configured model does not report vision support. "
+                "Text-only triage will run."
+            )
+        image, note = await self.attachments.ingest_host_image(
+            attachment, vision_supported=True
+        )
+        if image is None:
+            return (), note or "Screenshot ignored: the image did not pass the safety checks."
+        return (image,), note
 
     async def _gate(self, interaction: discord.Interaction):
         if not await checks.ensure_allowed(interaction, self.settings):
@@ -124,12 +157,14 @@ class AgentCog(CopilotCog):
     @app_commands.describe(
         goal="What the host should accomplish (evidence-backed, read-only)",
         mode="Which bounded plan to run (default: inferred from the goal)",
+        screenshot="Optional screenshot for verified vision troubleshooting (PNG/JPEG/WebP)",
     )
     async def agent(
         self,
         interaction: discord.Interaction,
         goal: app_commands.Range[str, 3, 500],
         mode: app_commands.Choice[str] | None = None,
+        screenshot: discord.Attachment | None = None,
     ) -> None:
         context = await self._gate(interaction)
         if context is None:
@@ -137,10 +172,23 @@ class AgentCog(CopilotCog):
         selected = HostMode(mode.value) if mode is not None else None
         try:
             await interaction.response.defer(ephemeral=True, thinking=True)
+            images, image_note = (
+                await self._host_image(screenshot) if screenshot is not None else ((), None)
+            )
+            if image_note:
+                try:
+                    await interaction.followup.send(
+                        image_note,
+                        ephemeral=True,
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
+                except discord.HTTPException:
+                    log.warning("Could not deliver host image note")
             view = await self.agents.create_run(
                 context,
                 goal=goal,
                 mode=selected,
+                has_images=bool(images),
                 idempotency_key=f"slash:{interaction.id}",
             )
             progress = AgentRunProgressView(self, view.run_id)
@@ -173,7 +221,7 @@ class AgentCog(CopilotCog):
             except discord.HTTPException:
                 log.warning("Could not deliver agent progress message (run=%s)", view.run_id)
 
-            await self.agents.start(context, view.run_id, on_update=push)
+            await self.agents.start(context, view.run_id, images=images, on_update=push)
         except Exception as exc:  # noqa: BLE001 - command boundary must stay safe
             await self.handle_error(interaction, exc, action="starting the agent run")
 

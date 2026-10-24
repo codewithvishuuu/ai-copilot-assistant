@@ -229,7 +229,7 @@ class KnowledgeCog(CopilotCog):
 
     @app_commands.command(
         name="forget",
-        description="Moderator: permanently delete ALL stored data for one thread",
+        description="Moderator: permanently delete a thread's stored content and records",
     )
     async def forget(self, interaction: discord.Interaction, thread: discord.Thread) -> None:
         if not await checks.ensure_allowed(interaction, self.settings):
@@ -239,23 +239,20 @@ class KnowledgeCog(CopilotCog):
         if not await checks.ensure_target_thread(interaction, thread, self.settings):
             return
 
-        counts = await retention.purge_thread(
-            self.db, str(thread.id), guild_id=str(interaction.guild_id)
-        )
-        attachment_count = await self.repo.delete_attachments_for_channel(
-            guild_id=str(interaction.guild_id), channel_id=str(thread.id)
-        )
-        if attachment_count:
-            counts["attachments"] = attachment_count
-        await self.repo.audit(
-            actor_id=str(interaction.user.id),
-            action="thread.forgotten",
-            target_type="thread",
-            target_id=str(thread.id),
-            guild_id=str(interaction.guild_id),
-            meta={"guild_id": str(interaction.guild_id), "deleted": counts},
-        )
-        if not counts:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            # The audit row is written in the same transaction as the deletes: a
+            # failed audit must not leave unlogged, irreversible data loss.
+            counts = await retention.purge_thread(
+                self.db,
+                str(thread.id),
+                guild_id=str(interaction.guild_id),
+                audit_actor_id=str(interaction.user.id),
+            )
+        except Exception as exc:  # noqa: BLE001 - interaction callback must reply safely
+            await self.handle_error(interaction, exc, action="forgetting the thread")
+            return
+        if not any(counts.values()):
             await self.reply(
                 interaction,
                 content="Nothing was stored for that thread — there is nothing to delete.",
@@ -265,8 +262,9 @@ class KnowledgeCog(CopilotCog):
         await self.reply(
             interaction,
             content=(
-                f"Deleted all stored data for <#{thread.id}>: {summary}. "
-                "This cannot be undone."
+                f"Deleted stored thread content for <#{thread.id}>: {summary}. "
+                "Audit records and internal workflow history (agent runs, drafts, "
+                "scheduled jobs) are retained. This cannot be undone."
             ),
         )
         log.info("Thread %s purged by moderator %s: %s", thread.id, interaction.user.id, counts)

@@ -64,8 +64,9 @@ src/copilot/
     orchestrator.py         guild/channel auth, permission check, timeout/output bounds, safe errors
     builtin.py              kb.search, insights.community, pulse.community,
                             knowledge.candidates, research.web (all read-only; gated per skill)
-    roles.py                eight specialist roles: declarative capabilities, skills,
-                            permissions and human-approval requirements
+    roles.py                eight specialist roles, each mapped to at least one
+                            registered runtime skill, with permissions and
+                            human-approval requirements
     host.py                 goal → bounded dependency-aware plan, bounded-parallel execution,
                             upstream output passing, cancellation, recovery, guild-scoped views
   core/                     Discord-agnostic logic:
@@ -319,8 +320,12 @@ the contracts and isolation behaved, not that model answers are good.
 moderator /agent <goal>
   → allowlist + moderator gate; goal cleaned, control tokens stripped, length-bounded
   → HostPlanner: classify goal → mode plan over registered read-only skills only
-    (community: pulse → insights → kb.search; research: kb.search [+ research.web];
-     draft_prep: kb.search → pulse [+ research.web]; moderation/triage: knowledge checks)
+    (community: pulse → insights → radar → kb.search;
+     research: kb.search [+ research.web];
+     draft_prep: kb.search → pulse → content.brief [+ research.web];
+     moderation: moderation.assess → knowledge candidates → insights;
+     triage: kb.search → triage.analyze;
+     evaluation: quality.checks)
   → validate plan: unique increasing indices, backward-only dependencies, read-only skills
   → persist run + steps (idempotency key unique per guild) → audit
   → executor: ready steps (all dependencies succeeded) run under AGENT_MAX_PARALLEL;
@@ -334,7 +339,12 @@ startup → non-terminal agent runs close as failed/interrupted
 
 Provider availability is reported, never simulated: if `research.web` is not registered, the
 plan says the Web Researcher is unavailable instead of inventing sources. No step publishes,
-approves, deletes, warns, times out or bans.
+approves, deletes, warns, times out or bans. The moderation specialist is classification-only,
+the content writer returns a draft suggestion that is not saved as a Content Studio
+draft, and the quality specialist shares the same offline checks as `/evaluate`
+without persisting a report. Screenshot interpretation
+stays in the mention-chat multimodal path (vision capability verified) while host triage
+analyzes pasted text/logs deterministically.
 
 ## Attachment flow (gap closure)
 
@@ -354,7 +364,8 @@ attachment was run.
 ## AI moderation flow (gap closure)
 
 ```
-message event → moderation enabled? guild policy enabled? → classification call (context, bounded)
+message event that explicitly mentions the bot (Message Content intent off) → moderation enabled?
+  → guild policy enabled? → classification call (context, bounded)
   → category + severity + confidence vs policy thresholds
   → high-confidence + policy-enabled deletion + bot permission → delete → incident + warning
   → ambiguous/low-confidence → flag only, no deletion
@@ -365,7 +376,9 @@ retries → idempotent: no duplicate deletion, warning or report
 ```
 
 No auto-ban, kick or timeout exists. Identity is never treated as evidence of guilt, and every
-lookup is guild-scoped.
+lookup is guild-scoped. Because the privileged Message Content intent stays off, the listener
+assesses only messages that mention the bot; ordinary channel messages are out of scope and the
+user-facing documentation says so.
 
 ## Content voice and approval coverage (gap closure)
 
@@ -391,10 +404,12 @@ bypass flag and no model-visible switch.
 scheduler tick → due pending jobs → atomic claim (conditional pending→running)
   → dispatch: only agent.run (read-only), digest.collect (read-only), content.draft (draft only)
   → guild allowlist rechecked; timeout bounded
-  → success → succeeded + audit (result reference only)
+  → success → conditional succeeded transition + audit (result reference only)
   → failure → backoff retry up to SCHEDULER_MAX_ATTEMPTS → failed (permanent errors skip retry)
 restart → running jobs return to pending and run again
-/calendar-cancel → cancels the linked job; /schedule-cancel → cancels one job
+/calendar-cancel → cancels the linked job; /schedule-cancel → cancels a pending or running job
+cancellation → row becomes cancelled, the in-flight task is cancelled, and a racing
+  success/failure transition or audit can never overwrite it
 ```
 
 There is no publishing, sending, event-creation or moderation job kind. Draft jobs still require

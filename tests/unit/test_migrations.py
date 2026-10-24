@@ -1,14 +1,16 @@
-"""Schema migrations: v2 -> v9 upgrade keeps all data; fresh init; integrity.
+"""Schema migrations: v2 -> v10 upgrade keeps all data; fresh init; integrity.
 
 Migrations 3 through 6 add conversation memory, guild/review metadata for the
 knowledge base, the Phase 2A approval tables, and the Phase 2B Content Studio
 tables. Migration 7 adds nullable source/version metadata to existing solution
 candidates; migration 8 adds missions, research reports, planning tables,
 offline evaluation runs, draft provenance and guild-scoped audit; migration 9
-adds the durable scheduler jobs table. These tests prove that an existing
-version-2 database upgrades in place without touching its data or the FTS index,
-that migration 4 backfills ``guild_id`` and ``approved`` correctly, that a fresh
-database reaches v9 with all tables present, and that SQLite reports full
+adds the durable scheduler jobs table; migration 10 rebuilds the agent run
+tables to admit the read-only evaluation host mode. These tests prove that an
+existing version-2 database upgrades in place without touching its data or the
+FTS index, that migration 4 backfills ``guild_id`` and ``approved`` correctly,
+that a version-9 agent run and its step survive the v10 rebuild, that a fresh
+database reaches v10 with all tables present, and that SQLite reports full
 integrity afterwards.
 
 The v2 fixture is a genuinely created version-2 database in a temp directory —
@@ -109,7 +111,7 @@ async def test_upgrade_from_v2_preserves_everything_and_adds_scoped_knowledge(tm
     db = Database(path)
     await db.connect()
     try:
-        assert await db.user_version() == 9
+        assert await db.user_version() == 10
         counts = await db.counts()
         assert counts["threads"] == 1
         assert counts["messages"] == 1
@@ -161,8 +163,8 @@ async def test_upgrade_from_v2_preserves_everything_and_adds_scoped_knowledge(tm
         await db.close()
 
 
-async def test_migrations_3_through_9_are_additive_only(tmp_path):
-    """Only new tables/indexes and one nullable column appear; nothing is dropped."""
+async def test_migrations_3_through_10_keep_objects_and_data(tmp_path):
+    """Every pre-existing object survives; migration 10 rebuilds only agent tables."""
     path = tmp_path / "additive.db"
     _make_v2_database(path)
     before = _object_names(path)
@@ -170,7 +172,7 @@ async def test_migrations_3_through_9_are_additive_only(tmp_path):
     db = Database(path)
     await db.connect()
     try:
-        assert await db.user_version() == 9
+        assert await db.user_version() == 10
         columns = {
             row["name"]
             for row in await db.fetchall("PRAGMA table_info(kb_docs)")
@@ -274,6 +276,61 @@ async def test_migrations_3_through_9_are_additive_only(tmp_path):
     assert before - after == set()
 
 
+async def test_v10_rebuild_preserves_agent_runs_and_steps_and_allows_evaluation(tmp_path):
+    path = tmp_path / "agent-runs-v9.db"
+    conn = sqlite3.connect(path)
+    try:
+        conn.executescript(_schema_upto(9))
+        conn.execute("PRAGMA user_version = 9")
+        conn.execute(
+            "INSERT INTO agent_runs (guild_id, channel_id, requester_id, goal, mode, "
+            "status, trace_id, created_at, updated_at) "
+            "VALUES ('500', '2002', '7', 'old goal', 'community', 'completed', "
+            "'trace-old', '2026-10-20T00:00:00+00:00', '2026-10-20T00:00:01+00:00')"
+        )
+        run_id = conn.execute("SELECT id FROM agent_runs").fetchone()[0]
+        conn.execute(
+            "INSERT INTO agent_run_steps (run_id, step_index, role_id, title, skill_id, "
+            "status) VALUES (?, 0, 'community_manager', 'Old step', 'synthesis.brief', "
+            "'succeeded')",
+            (run_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    db = Database(path)
+    await db.connect()
+    try:
+        assert await db.user_version() == 10
+        rows = await db.fetchall("SELECT id, mode, goal, trace_id FROM agent_runs")
+        assert [(row["id"], row["mode"], row["goal"], row["trace_id"]) for row in rows] == [
+            (run_id, "community", "old goal", "trace-old")
+        ]
+        steps = await db.fetchall("SELECT run_id, step_index, skill_id FROM agent_run_steps")
+        assert [(row["run_id"], row["step_index"], row["skill_id"]) for row in steps] == [
+            (run_id, 0, "synthesis.brief")
+        ]
+
+        await db.execute(
+            "INSERT INTO agent_runs (guild_id, channel_id, requester_id, goal, mode, "
+            "trace_id, created_at, updated_at) "
+            "VALUES ('500', '2002', '7', 'evaluate', 'evaluation', "
+            "'trace-new', '2026-10-20T00:00:02+00:00', '2026-10-20T00:00:02+00:00')"
+        )
+        new_run = await db.fetchone("SELECT id FROM agent_runs WHERE trace_id = 'trace-new'")
+        assert new_run is not None
+        await db.execute(
+            "INSERT INTO agent_run_steps (run_id, step_index, role_id, title, skill_id) "
+            "VALUES (?, 0, 'quality_evaluation', 'Checks', 'quality.checks')",
+            (new_run["id"],),
+        )
+        assert await db.fetchall("PRAGMA foreign_key_check") == []
+        assert (await db.fetchone("PRAGMA integrity_check"))[0] == "ok"
+    finally:
+        await db.close()
+
+
 async def test_failed_migration_rolls_back_and_leaves_prior_version_usable(tmp_path):
     """A mid-block failure must not leave a half-applied migration or open connection."""
     path = tmp_path / "failed-migration.db"
@@ -320,13 +377,13 @@ async def test_upgraded_database_keeps_working_after_reconnect(tmp_path):
     second = Database(path)
     await second.connect()
     try:
-        assert await second.user_version() == 9
+        assert await second.user_version() == 10
     finally:
         await second.close()
 
 
-async def test_fresh_database_reaches_v9_with_full_integrity(tmp_db):
-    assert await tmp_db.user_version() == 9
+async def test_fresh_database_reaches_v10_with_full_integrity(tmp_db):
+    assert await tmp_db.user_version() == 10
     assert (await tmp_db.counts())["conversation_turns"] == 0
     assert (await tmp_db.counts())["approval_requests"] == 0
     assert (await tmp_db.counts())["content_drafts"] == 0

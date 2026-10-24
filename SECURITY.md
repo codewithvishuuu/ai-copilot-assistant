@@ -109,8 +109,8 @@
 | Auto-indexed thread fingerprints are `approved=0` and excluded from approved-only retrieval; only approved solutions are chat grounding knowledge | implemented+tested | `db/schema.sql` (migration 4), `cogs/summary.py`, `core/solutions.py`, `core/conversation.py` — `test_migrations.py`, `test_cogs_summary.py`, `test_solutions.py`, `test_conversation.py` |
 | `/insights` aggregates are guild-scoped | implemented+tested | `db/repository.py::summaries_since`, `core/insights_engine.py`, `cogs/insights.py` — `test_insights.py`, `test_repository.py` |
 | Phase 1 `kb.search` adapter is guild-scoped and calls `search_kb(..., approved_only=True)`; `insights.community` uses the guild-scoped insights engine | implemented+tested | `agents/builtin.py` — `test_agents_builtin.py` (cross-guild rows excluded, unapproved fingerprint excluded, moderator gate) |
-| `/forget` deletes a thread's messages, summaries, fingerprints **and FTS rows**, only after a same-guild target check; the purge is guild-scoped again in the database layer | implemented+tested | `db/retention.py`, `cogs/knowledge.py` — `tests/unit/test_retention.py`, `test_cogs_knowledge.py` (FTS verified after purge) |
-| No message bodies in logs by default (`DEBUG_LOG_CONTENT=false`) | implemented (manual) | `util/logging.py` + `cogs/summary.py` gate; default asserted in `test_config.py`, live behavior manual |
+| `/forget` deletes a thread's messages, summaries, solutions, fingerprints **and FTS rows**, plus channel-scoped conversation turns, moderation incidents/warnings, reply approvals and attachment records, in one guild-scoped transaction after a same-guild target check; audit, content-draft, agent-run and scheduled-job records are retained by policy and the reply says so | implemented+tested | `db/retention.py`, `cogs/knowledge.py` — `tests/unit/test_retention.py`, `test_cogs_knowledge.py` (FTS and cross-guild rows verified after purge) |
+| No message bodies in logs; logging redacts registered secrets and token-like values | implemented+tested | `util/logging.py` — `test_redaction.py` |
 | Ephemeral replies by default; documentation states they hide the *reply*, not source data from the bot | implemented (manual) | `cogs/*`; limitation documented in README/SECURITY |
 | Parameterized SQL only (no string-built queries) | implemented+tested | `db/repository.py` — injection-survivability tests in `test_repository.py` |
 | Chat turns stored scoped per (guild, channel, user); reads database-first and bounded (turn/char budget) | implemented+tested | `core/chat_memory.py`, `db/repository.py` — `test_chat_memory.py`, `test_repository.py` |
@@ -127,14 +127,33 @@
 | Audit rows are append-only and retained indefinitely; no retention sweep, `/forget`, conversation clear or KB purge deletes them. Metadata is ids/counts/states/hashes/codes only; free-text notes are not copied into audit records | implemented+tested + documented | `db/repository.py`, `core/solutions.py`, `AUDIT.md` - `test_knowledge_purge.py` (metadata excludes content), `test_solutions.py` |
 | Missions, mission steps, research reports, calendar entries, event plans, reply drafts and evaluation reports are guild-scoped in the repository; no cross-guild read or mutation is exposed | implemented+tested | `db/repository.py`, `missions/service.py`, `research/service.py`, `core/content_planning.py`, `core/evaluation.py` - `test_missions.py`, `test_research.py`, `test_content_planning.py`, `test_evaluation.py` (cross-guild isolation cases) |
 | Research reports store the query locally, but audit rows contain ids/status/provider only — never the query text, snippets or source titles | implemented+tested | `research/service.py` - `test_research.py` (audit excludes query) |
-| Planning artifacts are inert: calendar entries schedule nothing, event plans create nothing, reply drafts are never sent; deleting/dismiss/archive only changes local rows | implemented+tested | `core/content_planning.py`, `cogs/planning.py` - `test_content_planning.py` |
+| Planning artifacts are local rows only: calendar entries, event plans and reply drafts never send anything by themselves; reply drafts additionally require human approval. `/calendar-schedule` links a planned entry to a durable read-only/draft-only scheduled job and creates no publish job kind | implemented+tested | `core/content_planning.py`, `cogs/planning.py`, `cogs/scheduler.py` - `test_content_planning.py`, `test_scheduler.py` |
 | Offline evaluation uses temporary databases only and never touches the runtime DB; the report contains counts/codes and explicitly states model quality was not evaluated | implemented+tested | `core/evaluation.py` - `test_evaluation.py` (temporary DB isolation, disclaimer, failed-check handling) |
+
+### Retention decisions in detail
+
+The daily retention loop never deletes audit evidence. Each stored data class has
+one explicit policy:
+
+| Data | Decision | Mechanism |
+|---|---|---|
+| Audit log | Retained indefinitely. No sweep, `/forget`, conversation clear or KB purge removes rows. | `AUDIT.md`, `db/retention.py` |
+| Moderation incidents and warnings | Retained as safety evidence until an explicit channel-scoped `/forget`; no automatic age deletion. | `db/retention.py::purge_thread` |
+| Reply approvals | Rows are retained for review history. Pending rows lapse by TTL; the daily loop also marks any lapsed pending row `expired` (state change only). | `db/repository.py::expire_reply_approvals`, `db/retention.py::sweep_reply_approvals` |
+| Conversation turns | Deleted after `CONVERSATION_RETENTION_DAYS` and capped per (guild, channel, user) scope. | `db/retention.py::sweep_conversation_turns` |
+| Attachments (metadata + extracted text) | Deleted after `ATTACHMENT_RETENTION_DAYS`; `/forget` also removes them per channel. Runs independently of ingestion. | `db/retention.py::sweep_attachments` |
+| Threads, messages, summaries, corrections, solutions | Deleted after `RETENTION_DAYS`; approved knowledge survives; `/forget` removes everything for one thread. | `db/retention.py::sweep_expired`, `purge_thread` |
+| Content drafts, versions and draft approvals | Retained for review/version history; no automatic deletion. `content.draft_created`, `content.version_created` and `content.submitted` audit rows carry `guild_id`. | `db/repository.py`, `core/content_studio.py` |
+| Agent runs and steps | Retained as operational history; startup recovery marks interrupted runs failed; no age sweep. | `agents/host.py`, `db/repository.py::fail_interrupted_agent_runs` |
+| Scheduled jobs | Retained as operational history, including terminal states; no age sweep. Interrupted `running` rows are recovered or failed at startup. | `core/scheduler.py`, `db/repository.py` |
+| Missions, research reports, evaluations, planning rows | Deleted after `RETENTION_DAYS` when terminal/archived/dismissed. Active rows stay. | `db/retention.py` |
+
 
 ## 7. Discord surface
 
 | Control | Status | Where |
 |---|---|---|
-| No privileged intents (Message Content, Members, Presence stay off) | implemented (manual) | `bot.py` enables only `guilds` + non-privileged guild message events (mention chat); visible in code/startup logs |
+| No privileged intents (Message Content, Members, Presence stay off) | implemented (manual) | `bot.py` enables only `guilds` + non-privileged guild message events (mention chat and mention-only AI moderation); visible in code/startup logs |
 | Least-privilege permission set (documented in README; bot works without Manage Messages etc.) | done (documented), enforced by deployment choice | README + DEPLOYMENT.md |
 | `allowed_mentions` disabled on all sends | implemented (manual) | cogs/embeds; verified in the manual smoke test |
 | Graceful shutdown closes DB and cancels the worker | implemented+tested (queue) / manual (wiring) | `core/queue.py` — `test_queue.py` incl. shutdown regression; `bot.py` wiring manual |

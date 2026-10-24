@@ -405,7 +405,7 @@ class ApprovalService:
                 return self._execution_from_row(existing), False
             raise ApprovalConflictError()
 
-        execution = await self._repo.get_approval_execution(execution_id)
+        execution = await self._repo.get_approval_execution(execution_id, guild_id=str(actor.guild_id))
         if execution is None:  # pragma: no cover - storage invariant
             raise ApprovalConflictError()
         return self._execution_from_row(execution), True
@@ -428,7 +428,7 @@ class ApprovalService:
         if result_ref is not None and not result_ref.strip():
             raise ValueError("result_ref must not be blank")
 
-        execution = await self._repo.get_approval_execution(execution_id)
+        execution = await self._repo.get_approval_execution(execution_id, guild_id=str(actor.guild_id))
         if execution is None:
             await self._audit_denied(actor, execution_id, "execution", "not_found", target_type="execution")
             raise ApprovalNotFoundError()
@@ -455,7 +455,7 @@ class ApprovalService:
             error_code=error_code,
             result_ref=result_ref,
         )
-        current = await self._repo.get_approval_execution(execution_id)
+        current = await self._repo.get_approval_execution(execution_id, guild_id=str(actor.guild_id))
         if current is None:  # pragma: no cover - storage invariant
             raise ApprovalConflictError()
         if not applied and current["state"] != outcome.value:
@@ -480,7 +480,7 @@ class ApprovalService:
             raise ApprovalDeniedError()
         if not result_ref.strip():
             raise ValueError("result_ref must not be blank")
-        execution = await self._repo.get_approval_execution(execution_id)
+        execution = await self._repo.get_approval_execution(execution_id, guild_id=str(actor.guild_id))
         if execution is None:
             await self._audit_denied(actor, execution_id, "reconciliation", "not_found", target_type="execution")
             raise ApprovalNotFoundError()
@@ -502,13 +502,13 @@ class ApprovalService:
         )
         if not applied:
             raise ApprovalConflictError()
-        current = await self._repo.get_approval_execution(execution_id)
+        current = await self._repo.get_approval_execution(execution_id, guild_id=str(actor.guild_id))
         if current is None:  # pragma: no cover - storage invariant
             raise ApprovalConflictError()
         return self._execution_from_row(current)
 
     async def get_execution(self, execution_id: int, *, actor: ApprovalActor) -> ExecutionAttempt:
-        execution = await self._repo.get_approval_execution(execution_id)
+        execution = await self._repo.get_approval_execution(execution_id, guild_id=str(actor.guild_id))
         if execution is None:
             raise ApprovalNotFoundError()
         approval = await self._repo.get_approval_request(int(execution["approval_id"]), guild_id=str(actor.guild_id))

@@ -230,9 +230,25 @@ def test_looks_like_image_and_image_attachments():
     png = CollectedAttachment(filename="a.png", content_type=None, size=1, url="u", message_id="1")
     mime = CollectedAttachment(filename="noext", content_type="image/jpeg", size=1, url="u", message_id="1")
     other = CollectedAttachment(filename="doc.pdf", content_type="application/pdf", size=1, url="u", message_id="1")
+    generic = CollectedAttachment(
+        filename="upload.bin",
+        content_type="application/octet-stream",
+        size=1,
+        url="u",
+        message_id="1",
+    )
+    generic_pdf = CollectedAttachment(
+        filename="upload.pdf",
+        content_type="application/octet-stream",
+        size=1,
+        url="u",
+        message_id="1",
+    )
     assert png.looks_like_image() is True
     assert mime.looks_like_image() is True
+    assert generic.looks_like_image() is True
     assert other.looks_like_image() is False
+    assert generic_pdf.looks_like_image() is False
 
     thread = CollectedThread(
         thread_id="1",

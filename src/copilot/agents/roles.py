@@ -68,20 +68,20 @@ ROLE_DEFINITIONS: tuple[SpecialistRole, ...] = (
         title="Content Writer",
         purpose="Prepare a structured content brief grounded in approved community knowledge.",
         capabilities=("draft brief preparation", "voice-aware outline", "fact/provenance notes"),
-        skill_ids=("synthesis.brief",),
+        skill_ids=("content.brief",),
         permissions=frozenset({SkillPermission.moderator}),
         requires_human_approval=True,
         implementation_note=(
-            "Autonomous public writing/publishing is intentionally unavailable to the host; "
-            "Content Studio drafts remain human-approved."
+            "Produces a draft suggestion only; saving, versioning, approval and publishing "
+            "remain human-gated in Content Studio."
         ),
     ),
     SpecialistRole(
         role_id=RoleId.community_analytics,
         title="Community Analytics / Problem Radar",
         purpose="Summarize aggregate community health, recurring errors and open questions.",
-        capabilities=("community pulse", "aggregate insights", "recurring-problem evidence"),
-        skill_ids=("pulse.community", "insights.community"),
+        capabilities=("community pulse", "aggregate insights", "problem radar", "recurring-problem evidence"),
+        skill_ids=("pulse.community", "insights.community", "radar.community"),
         permissions=frozenset({SkillPermission.moderator}),
     ),
     SpecialistRole(
@@ -97,12 +97,12 @@ ROLE_DEFINITIONS: tuple[SpecialistRole, ...] = (
         title="AI Moderation",
         purpose="Assess configured abuse categories with confidence and route cases to humans.",
         capabilities=("context classification", "incident reporting", "policy thresholds"),
-        skill_ids=(),
+        skill_ids=("moderation.assess",),
         permissions=frozenset({SkillPermission.moderator}),
         requires_human_approval=True,
         implementation_note=(
-            "Deletion/warning decisions are handled by the dedicated moderation workflow; "
-            "the host never deletes, warns, times out or bans."
+            "The host skill is classification-only. Deletion, warnings and incident review "
+            "are handled by the dedicated moderation workflow; the host never acts."
         ),
     ),
     SpecialistRole(
@@ -110,10 +110,12 @@ ROLE_DEFINITIONS: tuple[SpecialistRole, ...] = (
         title="Vision and Troubleshooting",
         purpose="Reason over screenshots, pasted errors and logs, separating observations from inferences.",
         capabilities=("screenshot evidence", "log/stack-trace analysis", "safe diagnostic steps"),
-        skill_ids=(),
+        skill_ids=("triage.analyze", "vision.analyze"),
         permissions=frozenset({SkillPermission.guild_member}),
         implementation_note=(
-            "Implemented in the mention-chat multimodal path; no code execution or unsafe commands."
+            "Text/log triage is lexical. Host screenshots use vision.analyze only after the "
+            "configured provider reports vision support; otherwise the step reports an honest "
+            "text-only fallback. PDF/DOCX uploads remain bounded text extraction in mention-chat."
         ),
     ),
     SpecialistRole(
@@ -121,9 +123,12 @@ ROLE_DEFINITIONS: tuple[SpecialistRole, ...] = (
         title="Quality and Evaluation",
         purpose="Check plan bounds, provenance, guild isolation and safety invariants offline.",
         capabilities=("contract checks", "isolation checks", "approval invariants", "regression checks"),
-        skill_ids=(),
+        skill_ids=("quality.checks",),
         permissions=frozenset({SkillPermission.moderator}),
-        implementation_note="Implemented by the offline evaluation service; it never calls a model.",
+        implementation_note=(
+            "The host skill runs the same offline checks as /evaluate without persisting a report; "
+            "it never calls a model."
+        ),
     ),
 )
 
@@ -159,14 +164,10 @@ class RoleRegistry:
         return None
 
     def available(self, registered_skill_ids: frozenset[str] | set[str]) -> dict[RoleId, bool]:
-        """Role availability based on at least one registered skill.
-
-        Roles with no skill ids are advisory/implemented outside the host (for
-        example vision or moderation); they are reported separately rather than
-        presented as executable skills.
-        """
+        """Role availability based on at least one registered runtime skill."""
         return {
-            role.role_id: (not role.skill_ids)
-            or any(skill_id in registered_skill_ids for skill_id in role.skill_ids)
+            role.role_id: any(
+                skill_id in registered_skill_ids for skill_id in role.skill_ids
+            )
             for role in self._roles.values()
         }

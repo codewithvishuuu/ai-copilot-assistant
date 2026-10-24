@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import logging
 from types import SimpleNamespace
@@ -467,6 +468,23 @@ async def test_image_attachment_runs_through_safe_pipeline(tmp_path):
     assert message.replies[0]["content"] == "Looks like a red square."  # no note needed
 
 
+async def test_octet_stream_png_reaches_the_vision_capability_check(tmp_path):
+    provider = FakeProvider(responses=["Looks like a red square."])
+    cog, _ = make_cog(tmp_path, provider)
+    attachment = FakeAttachment(
+        filename="upload.bin",
+        content_type="application/octet-stream",
+        data=_png_bytes(),
+    )
+    message = mention_message(mid=401, attachments=[attachment])
+
+    assert await cog._handle(message) is True
+    images = provider.calls[0]["images"]
+    assert len(images) == 1
+    assert images[0].startswith(b"\x89PNG")
+    assert message.replies[0]["content"] == "Looks like a red square."
+
+
 async def test_images_skipped_when_vision_disabled(tmp_path):
     provider = FakeProvider(responses=["ok"])
     cog, _ = make_cog(tmp_path, provider, vision_enabled=False)
@@ -509,6 +527,47 @@ async def test_text_log_attachment_is_fenced_and_delivered_to_model(tmp_path, tm
     rows = await repo.recent_attachments(guild_id="500", channel_id="2002", user_id="7")
     assert len(rows) == 1
     assert "ValueError" in rows[0]["extracted_text"]
+
+
+async def test_attachments_disabled_does_not_reuse_stored_followup_text(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    first_cog, first_provider = make_cog(tmp_path, repo=repo)
+    first = mention_message(
+        mid=441,
+        attachments=[
+            FakeAttachment(
+                filename="build.log",
+                content_type="text/plain",
+                data=b"error: missing module foo",
+            )
+        ],
+    )
+    assert await first_cog._handle(first) is True
+
+    provider = FakeProvider(responses=["no attachment context"])
+    cog, _ = make_cog(tmp_path, provider, repo=repo, attachments_enabled=False)
+    second = mention_message(mid=442, text="<@999> what did that log say?")
+    assert await cog._handle(second) is True
+    prompt = provider.calls[0]["messages"][-1]["content"]
+    assert "missing module foo" not in prompt
+    assert "<earlier-attachments" not in prompt
+
+
+async def test_dropped_attachment_context_is_disclosed(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    provider = FakeProvider(responses=["answer without the file"])
+    cog, _ = make_cog(tmp_path, provider, repo=repo, conversation_max_chars=1500)
+    attachment = FakeAttachment(
+        filename="large.log",
+        content_type="text/plain",
+        data=b"x" * 6000,
+    )
+    message = mention_message(mid=443, attachments=[attachment])
+
+    assert await cog._handle(message) is True
+    prompt = provider.calls[0]["messages"][-1]["content"]
+    assert "<attachments" not in prompt
+    assert "too large to include" in message.replies[0]["content"]
 
 
 async def test_followup_turn_sees_earlier_attachment_extract(tmp_path, tmp_db):
@@ -868,6 +927,76 @@ async def test_failed_single_reply_is_logged_once_and_reported_undelivered(tmp_p
     assert caplog.text.count("delivery failed") == 1  # one diagnostic, no duplicate logging
     assert "status=403" in caplog.text
     assert "delivered=False" in caplog.text
+
+
+async def test_failed_delivery_is_not_added_to_conversation_history(tmp_path):
+    cog, _ = make_cog(tmp_path, provider=FakeProvider(responses=["never seen"]))
+    message = mention_message(mid=1101)
+    message.reply_error = _http_error(403)
+
+    assert await cog._handle(message) is False
+
+    scope = (500, 2002, 7)
+    assert await cog.memory.history(scope) == []
+
+
+async def test_held_reply_is_not_added_to_conversation_history(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    cog, _ = make_cog(
+        tmp_path,
+        provider=FakeProvider(responses=["held answer"]),
+        repo=repo,
+        reply_approval_enabled=True,
+    )
+    message = mention_message(mid=1102)
+
+    assert await cog._handle(message) is False
+    assert message.replies == []
+
+    scope = (500, 2002, 7)
+    assert await cog.memory.history(scope) == []
+
+
+async def test_expired_approved_reply_is_not_sent(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    cog, _ = make_cog(
+        tmp_path,
+        provider=FakeProvider(responses=["held answer"]),
+        repo=repo,
+        reply_approval_enabled=True,
+    )
+    content = "A reply approved just before its window closed."
+    reply_id = await repo.insert_reply_approval(
+        guild_id="500",
+        channel_id="2002",
+        reply_to_message_id="1103",
+        content=content,
+        content_hash=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        requested_by="7",
+        created_at="2026-01-01T00:00:00+00:00",
+        expires_at="2999-01-01T00:00:00+00:00",
+    )
+    assert await repo.decide_reply_approval(
+        reply_id,
+        guild_id="500",
+        state="approved",
+        decided_by="9",
+        decided_at="2026-01-01T00:00:01+00:00",
+    )
+    await tmp_db.execute(
+        "UPDATE reply_approvals SET expires_at = ? WHERE id = ?",
+        ("2000-01-01T00:00:00+00:00", reply_id),
+    )
+    row = await repo.get_reply_approval(reply_id, guild_id="500")
+    assert row is not None
+
+    refreshed, sent, total = await cog._deliver_reply_approval(
+        row, guild_id=500, approver_id="9"
+    )
+
+    assert sent == 0 and total >= 1
+    assert refreshed["state"] == "failed"
+    assert refreshed["error_code"] == "approval_expired"
 
 
 async def test_partial_delivery_stops_after_the_first_failed_chunk(tmp_path, caplog):

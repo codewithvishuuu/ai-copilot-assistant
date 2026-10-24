@@ -21,7 +21,12 @@ from copilot.agents.contract import (
 )
 from copilot.agents.orchestrator import SkillOrchestrator
 from copilot.agents.registry import SkillRegistry
-from copilot.errors import ProviderError, ProviderUnavailableError
+from copilot.errors import (
+    ProviderError,
+    ProviderUnavailableError,
+    ResearchNoResultsError,
+    ResearchProviderError,
+)
 
 
 class EchoInput(SkillInput):
@@ -99,6 +104,22 @@ class ProviderErrorSkill(EchoSkill):
     async def execute(self, context: SkillContext, payload: EchoInput) -> EchoOutput:
         self.calls += 1
         raise ProviderError(detail="SECRET provider detail")
+
+
+class ResearchProviderErrorSkill(EchoSkill):
+    skill_id = "test.research-provider-error"
+
+    async def execute(self, context: SkillContext, payload: EchoInput) -> EchoOutput:
+        self.calls += 1
+        raise ResearchProviderError(detail="SECRET provider detail")
+
+
+class ResearchNoResultsSkill(EchoSkill):
+    skill_id = "test.research-no-results"
+
+    async def execute(self, context: SkillContext, payload: EchoInput) -> EchoOutput:
+        self.calls += 1
+        raise ResearchNoResultsError(detail="SECRET query")
 
 
 class DictOutputSkill(EchoSkill):
@@ -250,6 +271,23 @@ async def test_provider_error_is_mapped_without_detail():
     )
 
     assert result.status is SkillStatus.provider_error
+    assert "SECRET" not in (result.error or "")
+
+
+@pytest.mark.parametrize(
+    "skill, expected",
+    [
+        (ResearchProviderErrorSkill(), "provider returned an error"),
+        (ResearchNoResultsSkill(), "no usable results"),
+    ],
+)
+async def test_research_errors_keep_a_specific_provider_status(skill, expected):
+    result = await orchestrator(skill).run(
+        TaskRequest(skill_id=skill.skill_id, input={"text": "hello"}), context()
+    )
+
+    assert result.status is SkillStatus.provider_error
+    assert expected in (result.error or "")
     assert "SECRET" not in (result.error or "")
 
 

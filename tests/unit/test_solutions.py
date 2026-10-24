@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from copilot.core.solutions import approve_solution, propose_solution, reject_solution, thread_url
 from copilot.db.repository import Repository
@@ -74,6 +75,8 @@ async def test_approve_promotes_to_searchable_knowledge_base(tmp_db):
 
     audits = await tmp_db.fetchall("SELECT * FROM audit_log WHERE action = 'solution.approved'")
     assert len(audits) == 1
+    assert audits[0]["guild_id"] == "500"
+    assert json.loads(audits[0]["meta_json"])["guild_id"] == "500"
 
     assert await approve_solution(repo, solution_id=solution_id, guild_id="500", actor_id="7") == (
         False,

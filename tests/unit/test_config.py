@@ -167,3 +167,12 @@ def test_whitespace_token_rejected():
     settings = Settings(_env_file=None, discord_token=" token-with-space")
     with pytest.raises(ConfigError):
         settings.validate_for_run()
+
+
+def test_unused_settings_are_gone_and_confidence_default_is_live():
+    fields = Settings.model_fields
+    assert "debug_log_content" not in fields
+    assert "moderation_report_channel_id" not in fields
+    assert Settings(_env_file=None).moderation_default_confidence == 0.75
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, moderation_default_confidence=1.5)

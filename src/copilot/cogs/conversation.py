@@ -388,6 +388,11 @@ class ConversationCog(CopilotCog):
                     # The builder dropped the block to fit the budget: the reply is
                     # no longer grounded, so neither the footer nor the log may say so.
                     grounded_docs = []
+                    if attachment_block:
+                        dropped_note = (
+                            "Note: attached file text was too large to include in this request."
+                        )
+                        image_note = f"{image_note}\n{dropped_note}" if image_note else dropped_note
                 if not await self._acquire_inference_slot():
                     return await self._static_notice(message, user_id, BUSY_REPLY, reason="capacity")
                 log.debug(
@@ -429,7 +434,6 @@ class ConversationCog(CopilotCog):
             return delivered
 
         cleaned = reply_text.strip()
-        persisted = await self.memory.append(scope, question, cleaned)
         display = neutralize_mentions(cleaned)
         if image_note:
             display = f"{display}\n\n{image_note}"
@@ -460,6 +464,9 @@ class ConversationCog(CopilotCog):
                     break
                 sent = part
         delivered = sent == len(chunks)
+        # Only remember an answer the user actually received. A held or failed
+        # reply must not appear in the next prompt as if it had been sent.
+        persisted = await self.memory.append(scope, question, cleaned) if delivered else False
         log.info(
             "chat: replied (persona=%s user=%s chars=%d chunks=%d sent=%d history=%d images=%d "
             "grounded=%d delivered=%s persisted=%s)",
@@ -902,16 +909,7 @@ class ConversationCog(CopilotCog):
             decided_by=reviewer_id,
             decided_at=_now_iso(),
             note=note,
-        )
-        if not decided:
-            raise ReplyApprovalConflictError()
-        await repo.audit(
-            actor_id=reviewer_id,
-            action=f"chat.reply_approval_{state}",
-            target_type="reply_approval",
-            target_id=str(reply_id),
-            guild_id=str(guild_id),
-            meta={
+            audit_meta={
                 "guild_id": str(guild_id),
                 "channel_id": str(row["channel_id"]),
                 "requested_by": str(row["requested_by"]),
@@ -919,6 +917,8 @@ class ConversationCog(CopilotCog):
                 "chars": len(str(row["content"])),
             },
         )
+        if not decided:
+            raise ReplyApprovalConflictError()
         refreshed = await repo.get_reply_approval(reply_id, guild_id=str(guild_id))
         if decision == "reject":
             return refreshed or row, 0, 0
@@ -929,6 +929,10 @@ class ConversationCog(CopilotCog):
         content = str(row["content"])
         chunks = split_message(content)
         repo = self.repo
+        if str(row["expires_at"]) <= _now_iso():
+            await self._finish_reply_approval_failure(row, guild_id, "approval_expired")
+            refreshed = await repo.get_reply_approval(int(row["id"]), guild_id=str(guild_id))
+            return refreshed or row, 0, len(chunks)
         channel = None
         failure = "destination_unavailable"
         guild = self.bot.get_guild(guild_id)
@@ -946,6 +950,13 @@ class ConversationCog(CopilotCog):
             ) != guild_id:
                 channel = None
                 failure = "cross_guild_destination"
+            if channel is not None and not checks.channel_allowed(
+                self.settings.channel_allowlist,
+                getattr(channel, "id", None),
+                getattr(channel, "parent_id", None),
+            ):
+                channel = None
+                failure = "channel_not_allowed"
         if channel is None:
             await self._finish_reply_approval_failure(row, guild_id, failure)
             return await repo.get_reply_approval(int(row["id"]), guild_id=str(guild_id)) or row, 0, len(chunks)
@@ -1263,6 +1274,12 @@ class ConversationCog(CopilotCog):
         author = getattr(message, "author", None)
         user_id = getattr(author, "id", None)
         message_id = str(getattr(message, "id", "") or "")
+        has_attachments = bool(getattr(message, "attachments", ()) or ())
+        if not self.settings.attachments_enabled:
+            # The setting must stop old stored extracts from entering prompts too,
+            # not only new ingestion.
+            note = "Attachment reading is disabled in configuration." if has_attachments else None
+            return [], note, None
 
         followup = await self.attachments.followup_block(
             guild_id=guild_id,
@@ -1270,7 +1287,6 @@ class ConversationCog(CopilotCog):
             user_id=user_id,
             exclude_message_id=message_id,
         )
-        has_attachments = bool(getattr(message, "attachments", ()) or ())
         if not has_attachments:
             return [], None, followup
 
@@ -1301,14 +1317,13 @@ class ConversationCog(CopilotCog):
 
     @staticmethod
     def _has_image_hint(message) -> bool:
-        for attachment in getattr(message, "attachments", ()) or ():
-            content_type = str(getattr(attachment, "content_type", "") or "").lower()
-            filename = str(getattr(attachment, "filename", "") or "").lower()
-            if content_type.startswith("image/") or filename.endswith(
-                (".png", ".jpg", ".jpeg", ".webp")
-            ):
-                return True
-        return False
+        """True when an attachment might be an image.
+
+        Magic bytes, not the declared MIME type or filename, decide the actual
+        format inside ingestion. Any attachment can therefore be an image, so
+        the capability probe must not be gated on client-supplied hints.
+        """
+        return bool(getattr(message, "attachments", ()) or ())
 
     # ------------------------------------------------------------------ sending
 

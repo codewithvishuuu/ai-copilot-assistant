@@ -59,7 +59,7 @@ def _step_digest(output: dict | None) -> str:
     """One bounded human-readable line from a skill's structured output."""
     if not output:
         return ""
-    for field in ("brief", "summary", "answer", "analysis", "text", "synthesis", "pulse"):
+    for field in ("brief", "draft", "summary", "answer", "analysis", "text", "synthesis", "pulse", "snapshot"):
         value = output.get(field)
         if isinstance(value, str) and value.strip():
             return value.strip()

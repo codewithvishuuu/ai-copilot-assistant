@@ -23,6 +23,16 @@ log = logging.getLogger(__name__)
 
 _ALLOWED_MESSAGE_TYPES = {0, 19, 21}  # default, reply, thread_starter_message
 _IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tiff", ".heic")
+# A generic MIME type with an unknown suffix may still be an image (e.g.
+# upload.bin); the download path verifies magic bytes before use. Known
+# document/text suffixes are not treated as image candidates.
+_NON_IMAGE_SUFFIXES = {
+    ".pdf", ".docx", ".zip", ".txt", ".md", ".markdown", ".rst", ".csv",
+    ".tsv", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+    ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go", ".rs", ".c",
+    ".h", ".cpp", ".cs", ".rb", ".php", ".swift", ".sh", ".bash", ".zsh",
+    ".ps1", ".bat", ".log", ".out", ".err", ".trace", ".stacktrace",
+}
 
 
 @dataclass
@@ -38,7 +48,14 @@ class CollectedAttachment:
         mime = (self.content_type or "").lower()
         if mime.startswith("image/"):
             return True
-        return self.filename.lower().endswith(_IMAGE_EXTS)
+        name = self.filename.lower()
+        if name.endswith(_IMAGE_EXTS):
+            return True
+        # Generic MIME types are common for valid uploads. Let the magic-byte
+        # validation in the image pipeline decide; only skip known non-images.
+        return mime in ("", "application/octet-stream") and not any(
+            name.endswith(suffix) for suffix in _NON_IMAGE_SUFFIXES
+        )
 
 
 @dataclass

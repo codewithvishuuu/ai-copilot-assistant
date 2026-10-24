@@ -141,7 +141,18 @@ _SENSITIVE_NAMES = {
     ".pgpass",
     "credentials",
     "credentials.json",
+    "secrets",
     "secrets.json",
+}
+_SENSITIVE_STEMS = {
+    "credential",
+    "credentials",
+    "password",
+    "passwords",
+    "passwd",
+    "private",
+    "secret",
+    "secrets",
 }
 
 _UNSUPPORTED_NOTE = (
@@ -200,7 +211,7 @@ class AttachmentBundle:
 def safe_filename(name: str | None) -> str:
     """Basename only, printable, length-bounded — never a path."""
     base = os.path.basename(str(name or "").replace("\\", "/"))
-    base = _CONTROL_RE.sub("", base).strip()
+    base = _CONTROL_RE.sub("", base).replace("\r", " ").replace("\n", " ").strip()
     return truncate(base, MAX_FILENAME_CHARS) or "attachment"
 
 
@@ -214,7 +225,13 @@ def is_sensitive_filename(filename: str) -> bool:
         return True
     if lowered.startswith(".env") or lowered.startswith("id_"):
         return True
-    return _suffix(lowered) in _SENSITIVE_SUFFIXES
+    stem, suffix = os.path.splitext(lowered)
+    if stem in _SENSITIVE_STEMS or suffix in _SENSITIVE_SUFFIXES:
+        return True
+    # Also catch a sensitive suffix hidden behind a second extension, e.g.
+    # ``private.pem.txt``.
+    stem2, suffix2 = os.path.splitext(stem)
+    return stem2 in _SENSITIVE_STEMS or suffix2 in _SENSITIVE_SUFFIXES
 
 
 def classify_attachment(
@@ -494,6 +511,25 @@ def _image_dimensions(data: bytes) -> tuple[int | None, int | None]:
         return None, None
 
 
+_ATTACHMENT_TAG_RE = re.compile(
+    r"<(?=\s*/?\s*(?:attachments|earlier-attachments)\b)", re.IGNORECASE
+)
+_FENCE_MARK_RE = re.compile(r"<<<|>>>")
+
+
+def _neutralize_fence(text: str) -> str:
+    """Keep uploaded text from forming or closing the fence markers."""
+    text = _ATTACHMENT_TAG_RE.sub("&lt;", text)
+    return _FENCE_MARK_RE.sub(
+        lambda match: "&lt;&lt;&lt;" if match.group(0) == "<<<" else "&gt;&gt;&gt;",
+        text,
+    )
+
+
+def _fence_label(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "'")
+
+
 def fence_attachment_text(
     items: list[IngestedAttachment], *, max_chars: int
 ) -> str | None:
@@ -510,8 +546,8 @@ def fence_attachment_text(
             details.append(f"{item.width}x{item.height}px")
         if item.truncated:
             details.append("truncated")
-        header = f"[{index}] {item.filename} ({', '.join(details)})"
-        body = item.extracted_text.strip()
+        header = f"[{index}] {_fence_label(item.filename)} ({', '.join(details)})"
+        body = _neutralize_fence(item.extracted_text.strip())
         if not body and item.kind == "image":
             body = "Image attached separately for visual inspection; its pixels are not repeated here."
         if not body:
@@ -543,10 +579,10 @@ def fence_followup_attachments(rows: list[Any], *, max_chars: int) -> str | None
     remaining = max_chars
     for row in rows:
         try:
-            filename = safe_filename(row["filename"])
+            filename = _fence_label(safe_filename(row["filename"]))
             kind = str(row["kind"])
             message_id = str(row["message_id"])
-            text = str(row["extracted_text"] or "")
+            text = _neutralize_fence(str(row["extracted_text"] or ""))
             truncated = bool(row["truncated"])
         except (KeyError, IndexError, TypeError):
             continue
@@ -665,6 +701,36 @@ class AttachmentService:
             sum(1 for item in bundle.ingested if item.persisted),
         )
         return bundle
+
+    async def ingest_host_image(
+        self,
+        attachment: Any,
+        *,
+        vision_supported: bool,
+    ) -> tuple[bytes | None, str | None]:
+        """Validate and sanitize one host-run image without persisting it.
+
+        Returns ``(sanitized_bytes, note)``. The caller must still verify the
+        provider's live vision capability before sending the bytes; this method
+        only enforces the attachment safety pipeline.
+        """
+        if not self.settings.attachments_enabled:
+            return None, "Attachment reading is disabled in configuration."
+        item = await self._ingest_one(
+            attachment,
+            message_id="host-agent",
+            vision_supported=vision_supported,
+            image_slots_left=max(0, int(self.settings.max_images)),
+        )
+        if item is None:
+            return None, "The attachment could not be read."
+        if item.kind != "image":
+            return None, (
+                f"'{item.filename}' is not an image; host vision accepts PNG, JPEG or WebP only."
+            )
+        if item.image_bytes is None:
+            return None, item.note or "The image was not accepted by the safety checks."
+        return item.image_bytes, item.note
 
     async def _ingest_one(
         self,

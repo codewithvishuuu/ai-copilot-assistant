@@ -216,6 +216,8 @@ class ContentPublisher:
 
     async def recover(self, actor: ApprovalActor, draft_id: int, *, sender: ContentSender) -> PublishResult:
         """Reconcile a stuck claim only when the message can be proven to exist."""
+        if not self._settings.content_publishing_enabled:
+            raise ContentPublishingDisabledError()
         _require_allowed_guild(self._settings, actor.guild_id)
         candidate = await self._studio.get_recovery_candidate(actor, draft_id)
         _require_allowed_channel(self._settings, candidate.target_channel_id)

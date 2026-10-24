@@ -20,6 +20,8 @@ from ..errors import (
     ProviderError,
     ProviderTimeoutError,
     ProviderUnavailableError,
+    ResearchNoResultsError,
+    ResearchProviderError,
     ResearchUnavailableError,
 )
 from ..ui.checks import channel_allowed, guild_allowed
@@ -91,7 +93,7 @@ class SkillOrchestrator:
         except ProviderTimeoutError as exc:
             log.info("Skill provider timed out (skill=%s)", skill.skill_id)
             return self._failure(SkillStatus.timeout, request.skill_id, exc.user_message())
-        except ProviderError as exc:
+        except (ProviderError, ResearchProviderError, ResearchNoResultsError) as exc:
             log.warning("Skill provider error (skill=%s)", skill.skill_id)
             return self._failure(SkillStatus.provider_error, request.skill_id, exc.user_message())
         except Exception as exc:  # noqa: BLE001 - skill failures must not crash the bot

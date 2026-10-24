@@ -100,7 +100,20 @@ def test_prepare_falls_back_to_jpeg_when_png_exceeds_output_cap():
 
     sanitized, note = prepare_image_bytes(raw, max_output_bytes=10_000)
     assert sanitized.startswith(b"\xff\xd8\xff")  # JPEG magic
+    assert len(sanitized) <= 10_000
     assert "converted to JPEG" in (note or "")
+
+
+def test_prepare_applies_exif_orientation_before_stripping_metadata():
+    image = Image.new("RGB", (10, 20), (200, 30, 30))
+    exif = Image.Exif()
+    exif[274] = 6  # rotate 90 degrees clockwise for display
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", exif=exif)
+
+    sanitized, _note = prepare_image_bytes(buffer.getvalue())
+    with Image.open(io.BytesIO(sanitized)) as stored:
+        assert stored.size == (20, 10)
 
 
 # -------------------------------------------------------------------- download

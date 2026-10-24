@@ -108,7 +108,70 @@ async def test_forget_same_guild_still_purges_the_thread(tmp_path, tmp_db):
     assert counts["threads"] == 0
     assert counts["messages"] == 0
     assert counts["kb_docs"] == 0
-    assert "Deleted all stored data" in interaction.response.sent[-1]["content"]
+    content = interaction.followup.sent[-1]["content"]
+    assert "Deleted stored thread content" in content
+    assert "retained" in content
+
+
+async def test_forget_removes_channel_scoped_records_but_not_audit(tmp_path, tmp_db):
+    await seed_thread(tmp_db)
+    await tmp_db.execute(
+        "INSERT INTO conversation_turns (guild_id, channel_id, user_id, role, content, created_at) "
+        "VALUES ('500', '1001', '7', 'user', 'remember this', '2026-10-18T12:00:00+00:00')"
+    )
+    await Repository(tmp_db).insert_attachment(
+        guild_id="500",
+        channel_id="1001",
+        user_id="7",
+        message_id="m1",
+        filename="log.txt",
+        kind="text",
+        mime="text/plain",
+        size_bytes=4,
+        sha256="a" * 64,
+        width=None,
+        height=None,
+        pages=None,
+        extracted_text="text",
+        truncated=False,
+        error_code=None,
+        created_at="2026-10-18T12:00:00+00:00",
+    )
+    cog = make_cog(tmp_path, tmp_db)
+    interaction = moderator_interaction()
+
+    await KnowledgeCog.forget.callback(
+        cog,
+        interaction,
+        FakeThread(thread_id=1001, guild_id=500, parent_id=42),
+    )
+
+    counts = await tmp_db.counts()
+    assert counts["conversation_turns"] == 0
+    assert counts["attachments"] == 0
+    assert counts["audit_log"] == 1
+    content = interaction.followup.sent[-1]["content"]
+    assert "1 conversation_turns" in content
+    assert "1 attachments" in content
+    assert "retained" in content
+
+
+
+async def test_forget_empty_thread_is_honest_and_still_audited(tmp_path, tmp_db):
+    cog = make_cog(tmp_path, tmp_db)
+    interaction = moderator_interaction()
+
+    await KnowledgeCog.forget.callback(
+        cog,
+        interaction,
+        FakeThread(thread_id=9999, guild_id=500, parent_id=42),
+    )
+
+    assert "Nothing was stored" in interaction.followup.sent[-1]["content"]
+    audits = await tmp_db.fetchall("SELECT action, guild_id FROM audit_log")
+    assert [(row["action"], row["guild_id"]) for row in audits] == [
+        ("thread.forgotten", "500")
+    ]
 
 
 async def seed_approved_doc(db, *, guild_id: str = "500") -> int:

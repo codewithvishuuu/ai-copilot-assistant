@@ -36,7 +36,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md). The rule that matters:
 - Pydantic models for anything crossing a boundary (config, model output, DB rows).
 - Every community-content string passes through `util/text.py` helpers before entering a prompt.
 - New user-visible failure paths must map to a friendly message in `errors.py` (never raw tracebacks).
-- Log at INFO without message bodies; use `DEBUG_LOG_CONTENT=true` only locally.
+- Log at INFO without message bodies; message content is never logged at any level.
 - Tests: no network, no real Discord, no real Ollama unless marked `live_ollama`.
 
 ## Adding a slash command (recipe)

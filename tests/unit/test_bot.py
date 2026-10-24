@@ -63,6 +63,17 @@ async def test_unknown_prefix_commands_are_swallowed(tmp_path):
         await bot.provider.aclose()
 
 
+async def test_bot_does_not_register_research_when_its_provider_is_disabled(tmp_path):
+    bot = CommunityCopilot(fake_settings(tmp_path))
+    try:
+        # Default test settings disable web research. A green "web researcher"
+        # badge would be a false capability claim, so the skill must be absent.
+        assert "research.web" not in bot.skill_registry.ids
+        assert bot.research_service is not None  # /research still reports unavailable
+    finally:
+        await bot.provider.aclose()
+
+
 async def test_bot_wires_the_approval_and_content_services_without_model_tools(tmp_path):
     from copilot.core.approvals import ApprovalService
     from copilot.core.content_studio import ContentStudio

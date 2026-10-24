@@ -17,7 +17,9 @@ confidence and a short recommendation; this service owns every action:
 - the audit row is guild-scoped and privacy-safe.
 
 Discord only delivers message text when the Message Content intent is enabled or
-the bot is mentioned; this module cannot moderate messages it never receives.
+the bot is mentioned. This bot keeps that privileged intent off, so the listener
+assesses only messages that explicitly mention it; this module cannot moderate
+messages it never receives.
 """
 
 from __future__ import annotations
@@ -351,6 +353,54 @@ class ModerationService:
         )
         return await self.policy(guild_id)
 
+    async def assess(
+        self,
+        *,
+        guild_id: int | str,
+        content: str,
+        context: Sequence[str] = (),
+        repeat_count: int = 0,
+    ) -> ModerationAssessment:
+        """Classify one message without recording an incident or taking action.
+
+        This is the read-only specialist path used by the host agent. It uses the
+        guild's configured categories/thresholds when a policy exists, but it
+        never inserts an incident, deletes a message, warns a user or writes an
+        audit row. The dedicated moderation workflow remains the only path that
+        can act.
+        """
+        if not str(content or "").strip():
+            raise ModerationPolicyError("There is no message text to assess.")
+        policy = await self.policy(guild_id)
+        return await self._classify(
+            policy=policy,
+            content=content,
+            context=context,
+            repeat_count=max(0, int(repeat_count)),
+        )
+
+    async def _classify(
+        self,
+        *,
+        policy: ModerationPolicy,
+        content: str,
+        context: Sequence[str],
+        repeat_count: int,
+    ) -> ModerationAssessment:
+        raw = await self.provider.chat(
+            system=SYSTEM_MODERATION,
+            user=build_moderation_prompt(
+                policy=policy,
+                content=content,
+                context=context,
+                repeat_count=repeat_count,
+            ),
+            json_schema=moderation_json_schema(policy.categories),
+            timeout_s=float(self.settings.moderation_timeout_s),
+            max_tokens=int(self.settings.moderation_max_tokens),
+        )
+        return parse_assessment(raw)
+
     async def evaluate(
         self,
         *,
@@ -398,6 +448,7 @@ class ModerationService:
                 since=(
                     now - timedelta(days=int(self.settings.moderation_repeat_window_days))
                 ).isoformat(timespec="seconds"),
+                state="confirmed",
             )
         except Exception as exc:  # noqa: BLE001
             log.warning("moderation: repeat lookup failed (%s)", type(exc).__name__)
@@ -412,19 +463,12 @@ class ModerationService:
             log.warning("moderation: daily lookup failed (%s)", type(exc).__name__)
 
         try:
-            raw = await self.provider.chat(
-                system=SYSTEM_MODERATION,
-                user=build_moderation_prompt(
-                    policy=policy,
-                    content=content,
-                    context=context,
-                    repeat_count=repeat_count,
-                ),
-                json_schema=moderation_json_schema(policy.categories),
-                timeout_s=float(self.settings.moderation_timeout_s),
-                max_tokens=int(self.settings.moderation_max_tokens),
+            assessment = await self._classify(
+                policy=policy,
+                content=content,
+                context=context,
+                repeat_count=repeat_count,
             )
-            assessment = parse_assessment(raw)
         except Exception as exc:  # noqa: BLE001 - safe failure, no action, no report
             log.warning(
                 "moderation: assessment failed for guild=%s channel=%s message=%s (%s)",
@@ -440,7 +484,8 @@ class ModerationService:
 
         category = assessment.effective_category(policy.categories)
         qualifies = (
-            not assessment.ambiguous
+            category in policy.categories
+            and not assessment.ambiguous
             and SEVERITY_ORDER[assessment.severity]
             >= SEVERITY_ORDER[policy.severity_threshold]
             and assessment.confidence >= policy.confidence_threshold
@@ -493,7 +538,7 @@ class ModerationService:
                     recommended = (
                         "Daily automatic-action limit reached; a moderator must review this message."
                     )
-        if qualifies and policy.notify_user:
+        if qualifies and policy.notify_user and within_daily_limit:
             try:
                 warning_created = await self.repo.add_moderation_warning(
                     guild_id=str(guild_id),

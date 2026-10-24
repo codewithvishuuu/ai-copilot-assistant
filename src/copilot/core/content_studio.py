@@ -322,6 +322,16 @@ class ContentStudio:
     ) -> ContentDraftView:
         self._require(actor, ApprovalPermission.propose)
         self._validate_target(actor, target)
+        if source_ref is not None:
+            existing = await self._repo.get_content_draft_by_source(
+                guild_id=str(actor.guild_id),
+                source_kind=source_kind,
+                source_ref=source_ref,
+            )
+            if existing is not None:
+                # Scheduled retry after a crash: the draft already exists, so
+                # return it instead of generating (and storing) a duplicate.
+                return await self.get_draft(actor, int(existing["id"]))
         context = await self._context(request.topic, guild_id=actor.guild_id)
         voice = await self._voice(actor.guild_id)
         feedback = await self._feedback(actor.guild_id)
@@ -387,6 +397,7 @@ class ContentStudio:
         version still cannot be submitted until a human edits it.
         """
         self._require(actor, ApprovalPermission.propose)
+        content = content.strip()
         self._validate_target(actor, target)
         findings = self._validate_content(content, guild_id=actor.guild_id, extra=extra)
         if not any(item.severity is ValidationSeverity.error for item in findings):
@@ -443,7 +454,7 @@ class ContentStudio:
             raise ContentDraftConflictError(
                 "A draft that is executing or published cannot be edited. Create a new draft."
             )
-        new_content = version["content"] if content is None else content
+        new_content = str(version["content"]) if content is None else content.strip()
         new_channel = int(draft["target_channel_id"]) if target is None else target.channel_id
         if target is not None:
             self._validate_target(actor, target)
@@ -708,7 +719,9 @@ class ContentStudio:
         draft = await self._repo.get_content_draft(draft_id, guild_id=str(actor.guild_id))
         if draft is None:
             raise ContentDraftNotFoundError()
-        version = await self._repo.get_content_draft_version(draft_id, int(draft["current_version"]))
+        version = await self._repo.get_content_draft_version(
+            draft_id, int(draft["current_version"]), guild_id=str(actor.guild_id)
+        )
         if version is None:  # pragma: no cover - storage invariant
             raise ContentDraftConflictError("The draft's current version is missing.")
         approval = None
@@ -716,7 +729,9 @@ class ContentStudio:
         if draft["approval_id"] is not None:
             approval = await self._repo.get_approval_request(int(draft["approval_id"]), guild_id=str(actor.guild_id))
             if approval is not None:
-                execution = await self._repo.get_approval_execution_for_approval(int(approval["id"]))
+                execution = await self._repo.get_approval_execution_for_approval(
+                    int(approval["id"]), guild_id=str(actor.guild_id)
+                )
         return draft, version, approval, execution
 
     def _view(self, actor: ApprovalActor, draft, version, approval, execution) -> ContentDraftView:
@@ -785,7 +800,12 @@ class ContentStudio:
                 and status is DraftStatus.approved
                 and not errors
             ),
-            can_recover=can_execute and is_human and status is DraftStatus.executing,
+            can_recover=(
+                can_execute
+                and is_human
+                and self._settings.content_publishing_enabled
+                and status is DraftStatus.executing
+            ),
         )
 
     async def _invalidate_approval(self, actor: ApprovalActor, draft, approval) -> None:

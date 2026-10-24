@@ -10,8 +10,10 @@ from copilot.db.retention import (
     expiry_from_now,
     iso,
     purge_thread,
+    sweep_attachments,
     sweep_conversation_turns,
     sweep_expired,
+    sweep_reply_approvals,
     utc_now,
 )
 
@@ -144,6 +146,125 @@ async def test_purge_is_idempotent(tmp_db):
     assert await purge_thread(tmp_db, "1001", guild_id="500") == {}
 
 
+async def _seed_channel_records(
+    tmp_db, *, guild_id="500", channel_id="1001", prefix="own"
+) -> None:
+    repo = Repository(tmp_db)
+    stamp = "2026-10-18T12:00:00+00:00"
+    await tmp_db.execute(
+        "INSERT INTO conversation_turns (guild_id, channel_id, user_id, role, content, created_at) "
+        "VALUES (?, ?, '7', 'user', 'remember this', ?)",
+        (guild_id, channel_id, stamp),
+    )
+    incident_id, created = await repo.insert_moderation_incident(
+        guild_id=guild_id,
+        message_id=f"{prefix}-message",
+        channel_id=channel_id,
+        author_id="7",
+        category="harassment",
+        severity="high",
+        confidence=0.9,
+        action_taken="flagged",
+        repeat_count=0,
+        recommended_next_step="Review",
+        created_at=stamp,
+    )
+    assert created is True
+    await tmp_db.execute(
+        "INSERT INTO moderation_warnings (guild_id, user_id, incident_id, category, created_at) "
+        "VALUES (?, '7', ?, 'harassment', ?)",
+        (guild_id, incident_id, stamp),
+    )
+    await repo.insert_reply_approval(
+        guild_id=guild_id,
+        channel_id=channel_id,
+        reply_to_message_id=f"{prefix}-reply",
+        content="draft reply",
+        content_hash="a" * 64,
+        requested_by="7",
+        created_at=stamp,
+        expires_at="2026-10-19T12:00:00+00:00",
+    )
+    await repo.insert_attachment(
+        guild_id=guild_id,
+        channel_id=channel_id,
+        user_id="7",
+        message_id=f"{prefix}-attachment",
+        filename="log.txt",
+        kind="text",
+        mime="text/plain",
+        size_bytes=4,
+        sha256="b" * 64,
+        width=None,
+        height=None,
+        pages=None,
+        extracted_text="text",
+        truncated=False,
+        error_code=None,
+        created_at=stamp,
+    )
+
+
+async def _channel_count(tmp_db, table: str, *, guild_id: str, channel_id: str) -> int:
+    if table == "moderation_warnings":
+        # Warnings carry no channel id; they inherit their incident's scope.
+        row = await tmp_db.fetchone(
+            "SELECT COUNT(*) AS c FROM moderation_warnings w "
+            "JOIN moderation_incidents i ON i.id = w.incident_id "
+            "WHERE w.guild_id = ? AND i.channel_id = ?",
+            (guild_id, channel_id),
+        )
+    else:
+        row = await tmp_db.fetchone(
+            f"SELECT COUNT(*) AS c FROM {table} WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        )
+    return int(row["c"])
+
+
+async def test_purge_thread_removes_channel_scoped_records(tmp_db):
+    repo = Repository(tmp_db)
+    await _seed_full_thread(repo)
+    await _seed_channel_records(tmp_db)
+    await _seed_channel_records(tmp_db, channel_id="2002", prefix="other-channel")
+    await _seed_channel_records(tmp_db, guild_id="999", prefix="other-guild")
+
+    counts = await purge_thread(tmp_db, "1001", guild_id="500")
+    assert counts["conversation_turns"] == 1
+    assert counts["moderation_incidents"] == 1
+    assert counts["moderation_warnings"] == 1
+    assert counts["reply_approvals"] == 1
+    assert counts["attachments"] == 1
+
+    tables = (
+        "conversation_turns",
+        "moderation_incidents",
+        "moderation_warnings",
+        "reply_approvals",
+        "attachments",
+    )
+    for table in tables:
+        assert await _channel_count(tmp_db, table, guild_id="500", channel_id="1001") == 0
+        assert await _channel_count(tmp_db, table, guild_id="500", channel_id="2002") == 1
+        assert await _channel_count(tmp_db, table, guild_id="999", channel_id="1001") == 1
+    # Cross-guild rows survive even when they share the thread's channel id.
+    assert (await tmp_db.counts())["moderation_warnings"] == 2
+
+
+async def test_purge_thread_deletes_channel_records_without_a_thread_row(tmp_db):
+    await _seed_channel_records(tmp_db, channel_id="7777", prefix="chat-only")
+
+    counts = await purge_thread(tmp_db, "7777", guild_id="500")
+    assert counts == {
+        "conversation_turns": 1,
+        "moderation_incidents": 1,
+        "moderation_warnings": 1,
+        "reply_approvals": 1,
+        "attachments": 1,
+    }
+    assert await purge_thread(tmp_db, "7777", guild_id="500") == {}
+
+
 # ------------------------------------------------------------------------ sweep
 
 
@@ -230,9 +351,73 @@ async def test_sweep_conversation_turns_deletes_only_expired_rows(tmp_db):
     assert await repo.search_kb("keep", guild_id="500", approved_only=False) != []
 
 
+async def test_sweep_attachments_deletes_expired_without_new_ingestion(tmp_db):
+    repo = Repository(tmp_db)
+    now = utc_now()
+    old = iso(now - timedelta(days=5))
+    fresh = iso(now - timedelta(hours=1))
+    for message_id, created_at in (("old-message", old), ("fresh-message", fresh)):
+        await repo.insert_attachment(
+            guild_id="500",
+            channel_id="2002",
+            user_id="7",
+            message_id=message_id,
+            filename="log.txt",
+            kind="text",
+            mime="text/plain",
+            size_bytes=4,
+            sha256="b" * 64,
+            width=None,
+            height=None,
+            pages=None,
+            extracted_text="text",
+            truncated=False,
+            error_code=None,
+            created_at=created_at,
+        )
+
+    # The age sweep runs without any message ingestion.
+    removed = await sweep_attachments(repo, days=3, now=now)
+    assert removed == 1
+    rows = await tmp_db.fetchall("SELECT message_id FROM attachments ORDER BY id")
+    assert [row["message_id"] for row in rows] == ["fresh-message"]
+    assert await sweep_attachments(repo, days=3, now=now) == 0
+
+
 async def test_sweep_conversation_turns_clamps_window_and_is_idempotent(tmp_db):
     now = utc_now()
     await _insert_turn(tmp_db, created_at=iso(now - timedelta(days=2)))
     # days=0 clamps to one day: the 2-day-old row expires, nothing else matches.
     assert await sweep_conversation_turns(tmp_db, days=0, now=now) == 1
     assert await sweep_conversation_turns(tmp_db, days=0, now=now) == 0
+
+
+async def test_sweep_reply_approvals_expires_rows_without_deleting_them(tmp_db):
+    repo = Repository(tmp_db)
+    now = utc_now()
+    for state_at, message_id in (
+        (now - timedelta(hours=2), "lapsed"),
+        (now + timedelta(hours=2), "live"),
+    ):
+        await repo.insert_reply_approval(
+            guild_id="500",
+            channel_id="2002",
+            reply_to_message_id=message_id,
+            content="Suggested reply body.",
+            content_hash="c" * 64,
+            requested_by="7",
+            created_at=iso(now - timedelta(hours=3)),
+            expires_at=iso(state_at),
+        )
+
+    assert await sweep_reply_approvals(repo, now=now) == 1
+    rows = await tmp_db.fetchall(
+        "SELECT reply_to_message_id, state FROM reply_approvals ORDER BY id"
+    )
+    assert [(row["reply_to_message_id"], row["state"]) for row in rows] == [
+        ("lapsed", "expired"),
+        ("live", "pending"),
+    ]
+    assert await sweep_reply_approvals(repo, now=now) == 0
+    # Expiry changes state only; the review history is never deleted.
+    assert len(rows) == 2

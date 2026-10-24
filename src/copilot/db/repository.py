@@ -311,7 +311,7 @@ class Repository:
         ``kb_docs`` row for this solution id.
         """
         now = utc_now_iso()
-        meta = json.dumps({"state": "approved"})
+        meta = json.dumps({"state": "approved", "guild_id": str(guild_id)})
 
         def _run(conn: sqlite3.Connection) -> str:
             row = conn.execute(
@@ -363,8 +363,8 @@ class Repository:
             )
             conn.execute(
                 "INSERT INTO audit_log (created_at, actor_id, action, target_type, target_id, "
-                "meta_json) VALUES (?, ?, 'solution.approved', 'solution', ?, ?)",
-                (now, actor_id, str(solution_id), meta),
+                "meta_json, guild_id) VALUES (?, ?, 'solution.approved', 'solution', ?, ?, ?)",
+                (now, actor_id, str(solution_id), meta, str(guild_id)),
             )
             return "approved"
 
@@ -783,14 +783,32 @@ class Repository:
             (idempotency_key,),
         )
 
-    async def get_approval_execution(self, execution_id: int) -> sqlite3.Row | None:
+    async def get_approval_execution(
+        self, execution_id: int, *, guild_id: str | None = None
+    ) -> sqlite3.Row | None:
+        if guild_id is None:
+            return await self.db.fetchone(
+                "SELECT * FROM approval_executions WHERE id = ?", (int(execution_id),)
+            )
         return await self.db.fetchone(
-            "SELECT * FROM approval_executions WHERE id = ?", (int(execution_id),)
+            "SELECT e.* FROM approval_executions e "
+            "JOIN approval_requests r ON r.id = e.approval_id "
+            "WHERE e.id = ? AND r.guild_id = ?",
+            (int(execution_id), str(guild_id)),
         )
 
-    async def get_approval_execution_for_approval(self, approval_id: int) -> sqlite3.Row | None:
+    async def get_approval_execution_for_approval(
+        self, approval_id: int, *, guild_id: str | None = None
+    ) -> sqlite3.Row | None:
+        if guild_id is None:
+            return await self.db.fetchone(
+                "SELECT * FROM approval_executions WHERE approval_id = ?", (int(approval_id),)
+            )
         return await self.db.fetchone(
-            "SELECT * FROM approval_executions WHERE approval_id = ?", (int(approval_id),)
+            "SELECT e.* FROM approval_executions e "
+            "JOIN approval_requests r ON r.id = e.approval_id "
+            "WHERE e.approval_id = ? AND r.guild_id = ?",
+            (int(approval_id), str(guild_id)),
         )
 
     async def claim_approval_execution(
@@ -1005,6 +1023,18 @@ class Repository:
         )
 
         def _run(conn: sqlite3.Connection) -> int:
+            if source_ref is not None:
+                existing = conn.execute(
+                    "SELECT id FROM content_drafts WHERE guild_id = ? AND source_kind = ? "
+                    "AND source_ref = ? ORDER BY id ASC LIMIT 1",
+                    (str(guild_id), source_kind, source_ref),
+                ).fetchone()
+                if existing is not None:
+                    # Idempotent retry: the scheduled source already produced a
+                    # draft, so reuse it instead of creating a duplicate. The
+                    # single serialized connection makes this check-and-insert
+                    # atomic with respect to other writers.
+                    return int(existing["id"])
             draft = conn.execute(
                 "INSERT INTO content_drafts (guild_id, target_channel_id, content_type, topic, "
                 "audience, tone, purpose, created_by, created_at, updated_at, current_version, "
@@ -1033,12 +1063,21 @@ class Repository:
             )
             conn.execute(
                 "INSERT INTO audit_log (created_at, actor_id, action, target_type, target_id, "
-                "meta_json) VALUES (?, ?, 'content.draft_created', 'content_draft', ?, ?)",
-                (created_at, created_by, str(draft_id), meta),
+                "meta_json, guild_id) VALUES (?, ?, 'content.draft_created', 'content_draft', ?, ?, ?)",
+                (created_at, created_by, str(draft_id), meta, str(guild_id)),
             )
             return draft_id
 
         return await self.db.run_in_transaction_with_result(_run)
+
+    async def get_content_draft_by_source(
+        self, *, guild_id: str, source_kind: str, source_ref: str
+    ) -> sqlite3.Row | None:
+        return await self.db.fetchone(
+            "SELECT * FROM content_drafts WHERE guild_id = ? AND source_kind = ? "
+            "AND source_ref = ? ORDER BY id ASC LIMIT 1",
+            (str(guild_id), source_kind, source_ref),
+        )
 
     async def get_content_draft(self, draft_id: int, *, guild_id: str) -> sqlite3.Row | None:
         return await self.db.fetchone(
@@ -1046,10 +1085,14 @@ class Repository:
             (int(draft_id), str(guild_id)),
         )
 
-    async def get_content_draft_version(self, draft_id: int, version: int) -> sqlite3.Row | None:
+    async def get_content_draft_version(
+        self, draft_id: int, version: int, *, guild_id: str
+    ) -> sqlite3.Row | None:
         return await self.db.fetchone(
-            "SELECT * FROM content_draft_versions WHERE draft_id = ? AND version = ?",
-            (int(draft_id), int(version)),
+            "SELECT v.* FROM content_draft_versions v "
+            "JOIN content_drafts d ON d.id = v.draft_id "
+            "WHERE v.draft_id = ? AND v.version = ? AND d.guild_id = ?",
+            (int(draft_id), int(version), str(guild_id)),
         )
 
     async def list_content_drafts(
@@ -1110,6 +1153,7 @@ class Repository:
         next_version = int(expected_version) + 1
         meta = json.dumps(
             {
+                "guild_id": str(guild_id),
                 "version": next_version,
                 "target_channel_id": str(target_channel_id),
                 "content_hash": content_hash,
@@ -1148,8 +1192,8 @@ class Repository:
             )
             conn.execute(
                 "INSERT INTO audit_log (created_at, actor_id, action, target_type, target_id, "
-                "meta_json) VALUES (?, ?, 'content.version_created', 'content_draft', ?, ?)",
-                (created_at, created_by, str(draft_id), meta),
+                "meta_json, guild_id) VALUES (?, ?, 'content.version_created', 'content_draft', ?, ?, ?)",
+                (created_at, created_by, str(draft_id), meta, str(guild_id)),
             )
             return True
 
@@ -1166,7 +1210,13 @@ class Repository:
         updated_at: str,
     ) -> bool:
         """Attach one pending approval to the exact current draft version."""
-        meta = json.dumps({"approval_id": int(approval_id), "version": int(expected_version)})
+        meta = json.dumps(
+            {
+                "guild_id": str(guild_id),
+                "approval_id": int(approval_id),
+                "version": int(expected_version),
+            }
+        )
 
         def _run(conn: sqlite3.Connection) -> bool:
             updated = conn.execute(
@@ -1185,8 +1235,8 @@ class Repository:
                 return False
             conn.execute(
                 "INSERT INTO audit_log (created_at, actor_id, action, target_type, target_id, "
-                "meta_json) VALUES (?, ?, 'content.submitted', 'content_draft', ?, ?)",
-                (updated_at, submitted_by, str(draft_id), meta),
+                "meta_json, guild_id) VALUES (?, ?, 'content.submitted', 'content_draft', ?, ?, ?)",
+                (updated_at, submitted_by, str(draft_id), meta, str(guild_id)),
             )
             return True
 
@@ -2126,13 +2176,17 @@ class Repository:
         )
 
     async def count_author_incidents_since(
-        self, *, guild_id: str, author_id: str, since: str
+        self, *, guild_id: str, author_id: str, since: str, state: str | None = None
     ) -> int:
-        row = await self.db.fetchone(
+        sql = (
             "SELECT COUNT(*) AS c FROM moderation_incidents "
-            "WHERE guild_id = ? AND author_id = ? AND created_at >= ?",
-            (str(guild_id), str(author_id), since),
+            "WHERE guild_id = ? AND author_id = ? AND created_at >= ?"
         )
+        params: list[object] = [str(guild_id), str(author_id), since]
+        if state is not None:
+            sql += " AND state = ?"
+            params.append(str(state))
+        row = await self.db.fetchone(sql, tuple(params))
         return int(row["c"]) if row is not None else 0
 
     async def add_moderation_warning(
@@ -2177,8 +2231,9 @@ class Repository:
         created_at: str,
         plan_json: str,
         steps: list[tuple[int, str, str, str, str, str]],
+        audit_meta: dict | None = None,
     ) -> int:
-        """Create one host-agent run and its dependency-aware steps atomically."""
+        """Create one host-agent run, its steps and its audit row atomically."""
 
         def _run(conn: sqlite3.Connection) -> int:
             cursor = conn.execute(
@@ -2219,6 +2274,19 @@ class Repository:
                         skill_id,
                         depends_on_json,
                         input_json,
+                    ),
+                )
+            if audit_meta is not None:
+                conn.execute(
+                    "INSERT INTO audit_log (created_at, actor_id, action, target_type, "
+                    "target_id, meta_json, guild_id) VALUES (?, ?, 'agent.created', "
+                    "'agent_run', ?, ?, ?)",
+                    (
+                        created_at,
+                        str(requester_id),
+                        str(run_id),
+                        json.dumps(audit_meta),
+                        str(guild_id),
                     ),
                 )
             return run_id
@@ -2481,8 +2549,8 @@ class Repository:
         return (
             await self.db.execute(
                 "UPDATE scheduled_jobs SET status = 'running', attempts = attempts + 1, "
-                "started_at = ?, updated_at = ? WHERE id = ? AND status = 'pending' "
-                "AND run_at <= ?",
+                "started_at = ?, finished_at = NULL, updated_at = ? WHERE id = ? "
+                "AND status = 'pending' AND run_at <= ? AND attempts < max_attempts",
                 (now, now, int(job_id), now),
             )
             == 1
@@ -2531,11 +2599,55 @@ class Repository:
         )
 
     async def recover_interrupted_scheduled_jobs(self, *, now: str) -> int:
-        return await self.db.execute(
-            "UPDATE scheduled_jobs SET status = 'pending', last_error = 'interrupted by restart', "
-            "updated_at = ? WHERE status = 'running'",
-            (now,),
-        )
+        """Return interrupted jobs to pending, failing those out of attempts.
+
+        A restart must not grant an extra attempt: rows at the attempt cap are
+        marked failed instead of being requeued. Stale execution timestamps are
+        cleared so a recovered row never looks like it is still running.
+        """
+
+        def _run(conn: sqlite3.Connection) -> int:
+            exhausted = conn.execute(
+                "SELECT id, guild_id, job_kind, attempts FROM scheduled_jobs "
+                "WHERE status = 'running' AND attempts >= max_attempts"
+            ).fetchall()
+            recovered = conn.execute(
+                "UPDATE scheduled_jobs SET status = 'pending', "
+                "last_error = 'interrupted by restart', started_at = NULL, "
+                "finished_at = NULL, updated_at = ? "
+                "WHERE status = 'running' AND attempts < max_attempts",
+                (now,),
+            ).rowcount
+            if exhausted:
+                conn.execute(
+                    "UPDATE scheduled_jobs SET status = 'failed', "
+                    "last_error = 'interrupted by restart', finished_at = ?, updated_at = ? "
+                    "WHERE status = 'running' AND attempts >= max_attempts",
+                    (now, now),
+                )
+                for row in exhausted:
+                    guild_id = str(row["guild_id"])
+                    conn.execute(
+                        "INSERT INTO audit_log (created_at, actor_id, action, target_type, "
+                        "target_id, meta_json, guild_id) VALUES (?, 'scheduler', "
+                        "'scheduler.job_failed', 'scheduled_job', ?, ?, ?)",
+                        (
+                            now,
+                            str(int(row["id"])),
+                            json.dumps(
+                                {
+                                    "guild_id": guild_id,
+                                    "kind": str(row["job_kind"]),
+                                    "attempts": int(row["attempts"]),
+                                    "error_code": "interrupted by restart",
+                                }
+                            ),
+                            guild_id,
+                        ),
+                    )
+            return int(recovered or 0)
+
+        return await self.db.run_in_transaction_with_result(_run)
 
     async def get_calendar_entry(
         self, entry_id: int, *, guild_id: str
@@ -2628,11 +2740,13 @@ class Repository:
         decided_by: str,
         decided_at: str,
         note: str | None = None,
+        audit_meta: dict | None = None,
     ) -> bool:
         if state not in {"approved", "rejected"}:
             raise ValueError("invalid reply approval decision")
-        return (
-            await self.db.execute(
+
+        def _run(conn: sqlite3.Connection) -> bool:
+            cursor = conn.execute(
                 "UPDATE reply_approvals SET state = ?, decided_by = ?, decided_at = ?, "
                 "decision_note = ?, updated_at = ? WHERE id = ? AND guild_id = ? AND state = 'pending' "
                 "AND expires_at > ?",
@@ -2647,8 +2761,24 @@ class Repository:
                     decided_at,
                 ),
             )
-            == 1
-        )
+            if cursor.rowcount != 1:
+                return False
+            if audit_meta is not None:
+                conn.execute(
+                    "INSERT INTO audit_log (created_at, actor_id, action, target_type, "
+                    "target_id, meta_json, guild_id) VALUES (?, ?, ?, 'reply_approval', ?, ?, ?)",
+                    (
+                        decided_at,
+                        str(decided_by),
+                        f"chat.reply_approval_{state}",
+                        str(reply_id),
+                        json.dumps(audit_meta),
+                        str(guild_id),
+                    ),
+                )
+            return True
+
+        return await self.db.run_in_transaction_with_result(_run)
 
     async def mark_reply_approval_sent(
         self, reply_id: int, *, guild_id: str, message_id: str, now: str

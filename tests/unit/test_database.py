@@ -40,14 +40,14 @@ def test_parse_real_schema_has_nine_ordered_migrations():
     migrations = parse_migrations(schema_path.read_text(encoding="utf-8"))
     versions = [version for version, _ in migrations]
     assert versions == sorted(versions)
-    assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert versions == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 
 # --------------------------------------------------------------- connect / ops
 
 
 async def test_connect_applies_migrations_and_reports_version(tmp_db):
-    assert await tmp_db.user_version() == 9
+    assert await tmp_db.user_version() == 10
     counts = await tmp_db.counts()
     for table in (
         "threads",
@@ -96,7 +96,7 @@ async def test_connect_is_idempotent_on_second_instance(tmp_path):
     second = Database(path)
     await second.connect()
     try:
-        assert await second.user_version() == 9
+        assert await second.user_version() == 10
         counts = await second.counts()
         assert counts["audit_log"] == 1  # data survived; migrations did not re-run
     finally:

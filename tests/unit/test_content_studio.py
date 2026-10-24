@@ -212,7 +212,7 @@ async def test_generation_validates_json_and_immutable_versions(tmp_db, tmp_path
     assert any(item.code == "duplicate_content" for item in duplicate.validation_warnings())
     assert [item.severity for item in duplicate.findings].count(ValidationSeverity.warning) == 1
 
-    first_version = await repo.get_content_draft_version(view.draft_id, 1)
+    first_version = await repo.get_content_draft_version(view.draft_id, 1, guild_id="500")
     assert first_version is not None
     assert first_version["content"] == content
 
@@ -367,7 +367,7 @@ async def test_edit_invalidates_old_approval_and_target_binding(tmp_db, tmp_path
     old_approval = await repo.get_approval_request(old_approval_id, guild_id="500")
     assert old_approval is not None
     assert old_approval["state"] == ApprovalState.cancelled.value
-    old_version = await repo.get_content_draft_version(approved.draft_id, 1)
+    old_version = await repo.get_content_draft_version(approved.draft_id, 1, guild_id="500")
     assert old_version is not None
     assert old_version["content"] == "A useful community announcement."
 
@@ -406,10 +406,10 @@ async def test_stale_expected_version_cannot_overwrite_a_newer_edit(tmp_db, tmp_
             expected_version=1,
             content="Stale overwrite attempt.",
         )
-    latest = await repo.get_content_draft_version(draft.draft_id, 2)
+    latest = await repo.get_content_draft_version(draft.draft_id, 2, guild_id="500")
     assert latest is not None
     assert latest["content"] == "Second version."
-    assert await repo.get_content_draft_version(draft.draft_id, 3) is None
+    assert await repo.get_content_draft_version(draft.draft_id, 3, guild_id="500") is None
 
 
 async def test_stale_approval_binding_cannot_be_approved(tmp_db, tmp_path):
@@ -422,6 +422,19 @@ async def test_stale_approval_binding_cannot_be_approved(tmp_db, tmp_path):
     )
     with pytest.raises(ApprovalBindingError):
         await studio.approve_draft(actor("2"), pending.draft_id)
+
+
+async def test_manual_content_is_trimmed_before_the_approval_hash(tmp_db, tmp_path):
+    settings, clock, repo, approvals, studio, publisher = make_services(tmp_db, tmp_path)
+    pending = await ready_for_approval(
+        studio, content="  A useful community announcement.\n\n"
+    )
+
+    assert pending.status is DraftStatus.pending
+    approved = await studio.approve_draft(actor("2"), pending.draft_id)
+    assert approved.status is DraftStatus.approved
+    version = await repo.get_content_draft_version(pending.draft_id, 1, guild_id="500")
+    assert version["content"] == "A useful community announcement."
 
 
 async def test_rejected_and_missing_approvals_are_not_publishable(tmp_db, tmp_path):
@@ -536,6 +549,29 @@ async def test_publishing_disabled_hides_capability_and_blocks_send(tmp_db, tmp_
     with pytest.raises(ContentPublishingDisabledError):
         await publisher.publish(actor("2"), approved.draft_id, sender=sender)
     assert sender.attempts == 0
+
+
+async def test_publishing_disabled_also_blocks_recovery(tmp_db, tmp_path):
+    settings, clock, repo, approvals, studio, publisher = make_services(tmp_db, tmp_path)
+    approved = await approved_draft(studio)
+    sender = FakeSender(
+        target(), ambiguous=SendAmbiguous("timeout"), store_on_ambiguous=True
+    )
+    first = await publisher.publish(actor("2"), approved.draft_id, sender=sender)
+    assert first.status is PublishStatus.ambiguous
+
+    disabled_settings, _, _, _, disabled_studio, disabled_publisher = make_services(
+        tmp_db, tmp_path, content_publishing_enabled=False
+    )
+    draft = await disabled_studio.get_draft(actor("2"), approved.draft_id)
+    assert draft.can_recover is False
+    with pytest.raises(ContentPublishingDisabledError):
+        await disabled_publisher.recover(
+            actor("3", permissions={ApprovalPermission.execute}),
+            approved.draft_id,
+            sender=sender,
+        )
+    assert sender.attempts == 1
 
 
 # ----------------------------------------------------------------- publishing
@@ -793,3 +829,103 @@ async def test_approval_and_draft_rows_survive_retention_sweeps(tmp_db, tmp_path
     assert "content.submitted" in actions
     assert "content.published" in actions
     assert "approval.executed" in actions
+
+
+async def test_content_lifecycle_audits_are_guild_scoped(tmp_db, tmp_path):
+    settings, clock, repo, approvals, studio, publisher = make_services(tmp_db, tmp_path)
+    view = await studio.create_draft(
+        actor("1"), REQUEST, "A first community announcement body.", target=target()
+    )
+    edited = await studio.edit_draft(
+        actor("1"),
+        view.draft_id,
+        expected_version=view.version,
+        content="An edited community announcement body.",
+        target=target(),
+    )
+    await studio.submit_draft(actor("1"), edited.draft_id, target=target())
+
+    actions = {
+        str(row["action"])
+        for row in await repo.recent_audit(guild_id="500", limit=20)
+    }
+    assert {
+        "content.draft_created",
+        "content.version_created",
+        "content.submitted",
+    } <= actions
+    assert await repo.recent_audit(guild_id="999", limit=20) == []
+
+    rows = await tmp_db.fetchall(
+        "SELECT guild_id, meta_json FROM audit_log WHERE action LIKE 'content.%'"
+    )
+    assert {row["guild_id"] for row in rows} == {"500"}
+    for row in rows:
+        assert json.loads(row["meta_json"])["guild_id"] == "500"
+
+
+async def test_scheduled_generation_is_idempotent_by_source_ref(tmp_db, tmp_path):
+    settings, clock, repo, approvals, studio, publisher = make_services(tmp_db, tmp_path)
+    provider = FakeProvider(
+        responses=[
+            generated("The first scheduled announcement body."),
+            generated("A different second body that must not be used."),
+        ]
+    )
+
+    first = await studio.generate_draft(
+        actor("1"),
+        REQUEST,
+        target=target(),
+        provider=provider,
+        source_kind="scheduled",
+        source_ref="job:9",
+    )
+    second = await studio.generate_draft(
+        actor("1"),
+        REQUEST,
+        target=target(),
+        provider=provider,
+        source_kind="scheduled",
+        source_ref="job:9",
+    )
+
+    assert second.draft_id == first.draft_id
+    assert len(provider.calls) == 1
+    row = await tmp_db.fetchone(
+        "SELECT COUNT(*) AS count FROM content_drafts WHERE source_ref = 'job:9'"
+    )
+    assert row["count"] == 1
+
+
+async def test_duplicate_source_insert_reuses_the_existing_draft(tmp_db, tmp_path):
+    settings, clock, repo, approvals, studio, publisher = make_services(tmp_db, tmp_path)
+    payload = dict(
+        guild_id="500",
+        target_channel_id="42",
+        content_type="announcement",
+        topic="Scheduled release note",
+        audience="members",
+        tone="friendly",
+        purpose="announce",
+        created_by="7",
+        created_at=NOW.isoformat(),
+        content="The scheduled announcement body.",
+        content_hash="a" * 64,
+        validation_json="[]",
+        source_kind="scheduled",
+        source_ref="job:11",
+    )
+
+    first = await repo.insert_content_draft_with_version(**payload)
+    second = await repo.insert_content_draft_with_version(**payload)
+
+    assert second == first
+    rows = await tmp_db.fetchall("SELECT id FROM content_drafts")
+    assert [row["id"] for row in rows] == [first]
+    audits = [
+        row
+        for row in await repo.recent_audit(guild_id="500", limit=10)
+        if row["action"] == "content.draft_created"
+    ]
+    assert len(audits) == 1

@@ -666,3 +666,89 @@ CREATE TABLE IF NOT EXISTS reply_approvals (
 
 CREATE INDEX IF NOT EXISTS idx_reply_approvals_guild
   ON reply_approvals(guild_id, state, created_at DESC);
+
+-- @migration 10
+-- Widen the agent_runs.mode CHECK to include the read-only evaluation host
+-- mode. SQLite cannot alter a CHECK constraint in place, so both agent tables
+-- are rebuilt. The child rows are staged first and restored after the parent
+-- so the ON DELETE CASCADE cannot destroy existing run steps. Explicit ids
+-- keep every reference stable, and the indexes are recreated below.
+
+CREATE TABLE agent_runs_new (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id       TEXT NOT NULL,
+  channel_id     TEXT NOT NULL,
+  parent_channel_id TEXT,
+  requester_id   TEXT NOT NULL,
+  goal           TEXT NOT NULL,
+  mode           TEXT NOT NULL
+                 CHECK (mode IN ('community','research','draft_prep','moderation','triage','evaluation')),
+  status         TEXT NOT NULL DEFAULT 'planned'
+                 CHECK (status IN ('planned','running','completed','partial','failed','cancelled')),
+  plan_json      TEXT NOT NULL DEFAULT '[]',
+  result_json    TEXT,
+  error_code     TEXT,
+  trace_id       TEXT NOT NULL,
+  idempotency_key TEXT,
+  cancel_requested_at TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  started_at     TEXT,
+  finished_at    TEXT
+);
+
+INSERT INTO agent_runs_new (
+  id, guild_id, channel_id, parent_channel_id, requester_id, goal, mode, status,
+  plan_json, result_json, error_code, trace_id, idempotency_key,
+  cancel_requested_at, created_at, updated_at, started_at, finished_at
+)
+SELECT
+  id, guild_id, channel_id, parent_channel_id, requester_id, goal, mode, status,
+  plan_json, result_json, error_code, trace_id, idempotency_key,
+  cancel_requested_at, created_at, updated_at, started_at, finished_at
+FROM agent_runs;
+
+CREATE TABLE agent_run_steps_backup AS SELECT * FROM agent_run_steps;
+DROP TABLE agent_run_steps;
+DROP TABLE agent_runs;
+ALTER TABLE agent_runs_new RENAME TO agent_runs;
+
+CREATE UNIQUE INDEX idx_agent_runs_idempotency
+  ON agent_runs(guild_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE INDEX idx_agent_runs_guild
+  ON agent_runs(guild_id, created_at DESC);
+CREATE INDEX idx_agent_runs_status
+  ON agent_runs(guild_id, status, updated_at DESC);
+
+CREATE TABLE agent_run_steps (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id           INTEGER NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+  step_index       INTEGER NOT NULL CHECK (step_index >= 0),
+  role_id          TEXT NOT NULL,
+  title            TEXT NOT NULL,
+  skill_id         TEXT NOT NULL,
+  depends_on_json  TEXT NOT NULL DEFAULT '[]',
+  status           TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending','running','succeeded','failed','skipped','cancelled')),
+  input_json       TEXT NOT NULL DEFAULT '{}',
+  output_json      TEXT,
+  references_json  TEXT NOT NULL DEFAULT '[]',
+  error            TEXT,
+  started_at       TEXT,
+  finished_at      TEXT,
+  UNIQUE (run_id, step_index)
+);
+
+INSERT INTO agent_run_steps (
+  id, run_id, step_index, role_id, title, skill_id, depends_on_json, status,
+  input_json, output_json, references_json, error, started_at, finished_at
+)
+SELECT
+  id, run_id, step_index, role_id, title, skill_id, depends_on_json, status,
+  input_json, output_json, references_json, error, started_at, finished_at
+FROM agent_run_steps_backup;
+
+DROP TABLE agent_run_steps_backup;
+
+CREATE INDEX idx_agent_run_steps_run
+  ON agent_run_steps(run_id, step_index);

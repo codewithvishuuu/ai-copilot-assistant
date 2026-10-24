@@ -50,7 +50,7 @@ from .content_studio import content_hash
 from .images import prepare_image_bytes, sniff_image_format
 from .scheduler import ScheduledJobKind, SchedulerService
 
-MIN_SCHEMA_VERSION = 9
+MIN_SCHEMA_VERSION = 10
 _REQUIRED_TABLES = {
     "missions",
     "mission_steps",
@@ -151,6 +151,38 @@ class EvaluationService:
         self._clock = clock
 
     async def run(self, *, guild_id: str, requested_by: str) -> EvaluationReport:
+        report = await self.collect_checks(guild_id=guild_id, requested_by=requested_by)
+        status = "completed" if report.passed else "failed"
+        evaluation_id = await self._repo.insert_agent_eval_run(
+            guild_id=str(guild_id),
+            requested_by=str(requested_by),
+            status=status,
+            report_json=report.model_dump_json(),
+            created_at=report.created_at,
+        )
+        await self._repo.audit(
+            actor_id=str(requested_by),
+            action="evaluation.completed",
+            target_type="agent_eval_run",
+            target_id=str(evaluation_id),
+            guild_id=str(guild_id),
+            meta={
+                "guild_id": str(guild_id),
+                "passed": report.passed,
+                "checks": len(report.checks),
+                "failed": report.failed_count,
+            },
+        )
+        return report.model_copy(update={"evaluation_id": evaluation_id})
+
+    async def collect_checks(
+        self, *, guild_id: str, requested_by: str
+    ) -> EvaluationReport:
+        """Run every check without persisting a report or writing audit.
+
+        The persisted ``run`` path and the read-only host skill share this method
+        so both exercise exactly the same checks.
+        """
         checks: list[EvaluationCheck] = []
         checks.extend(self._registry_checks())
         checks.extend(self._agent_contract_checks())
@@ -176,7 +208,7 @@ class EvaluationService:
 
         passed_count = sum(1 for check in checks if check.passed)
         failed_count = len(checks) - passed_count
-        report = EvaluationReport(
+        return EvaluationReport(
             guild_id=str(guild_id),
             requested_by=str(requested_by),
             created_at=self._clock().isoformat(timespec="seconds"),
@@ -190,28 +222,6 @@ class EvaluationService:
                 else f"All {len(checks)} offline checks passed."
             ),
         )
-        status = "completed" if report.passed else "failed"
-        evaluation_id = await self._repo.insert_agent_eval_run(
-            guild_id=str(guild_id),
-            requested_by=str(requested_by),
-            status=status,
-            report_json=report.model_dump_json(),
-            created_at=report.created_at,
-        )
-        await self._repo.audit(
-            actor_id=str(requested_by),
-            action="evaluation.completed",
-            target_type="agent_eval_run",
-            target_id=str(evaluation_id),
-            guild_id=str(guild_id),
-            meta={
-                "guild_id": str(guild_id),
-                "passed": report.passed,
-                "checks": len(checks),
-                "failed": failed_count,
-            },
-        )
-        return report.model_copy(update={"evaluation_id": evaluation_id})
 
     # ------------------------------------------------------------ contract checks
 

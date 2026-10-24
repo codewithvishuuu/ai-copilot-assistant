@@ -83,10 +83,15 @@ class AutomodCog(CopilotCog):
         ):
             return
 
+        # The privileged Message Content intent stays off, so Discord only
+        # delivers text for messages that mention the bot. Enforce that scope
+        # explicitly: ordinary channel messages are not assessed, and this
+        # listener must never imply otherwise.
+        if not self._mentions_bot(message):
+            return
         content = getattr(message, "content", "") or ""
         if not content.strip():
-            # With the Message Content intent off, Discord delivers empty content
-            # for most messages. Do not pretend they were moderated.
+            # Defensive: a mention with no readable text cannot be assessed.
             return
 
         message_id = getattr(message, "id", None)
@@ -132,6 +137,13 @@ class AutomodCog(CopilotCog):
                 mask_id(getattr(guild, "id", None)),
                 mask_id(message_id),
             )
+
+    def _mentions_bot(self, message) -> bool:
+        bot_id = getattr(getattr(self.bot, "user", None), "id", None)
+        if bot_id is None:
+            return False
+        mentions = getattr(message, "mentions", ()) or ()
+        return any(getattr(user, "id", None) == bot_id for user in mentions)
 
     def _remember(self, message_id: int) -> bool:
         """True when this id was already handled in this process."""
@@ -248,12 +260,12 @@ class AutomodCog(CopilotCog):
         interaction: discord.Interaction,
         enabled: bool,
         report_channel: discord.TextChannel | None = None,
-        delete_enabled: bool = False,
+        delete_enabled: bool | None = None,
         severity: app_commands.Choice[str] | None = None,
-        confidence: float = 0.75,
-        categories: str = ",".join(DEFAULT_CATEGORIES),
-        max_per_day: int = 20,
-        notify_user: bool = False,
+        confidence: float | None = None,
+        categories: str | None = None,
+        max_per_day: int | None = None,
+        notify_user: bool | None = None,
         clear_report_channel: bool = False,
     ) -> None:
         if not await checks.ensure_allowed(interaction, self.settings):
@@ -281,26 +293,71 @@ class AutomodCog(CopilotCog):
             if target_guild is not None and int(target_guild) != int(guild_id):
                 await self.reply(interaction, content="The report channel must be in this server.")
                 return
-        selected_categories = [
-            item.strip().lower() for item in str(categories or "").split(",") if item.strip()
-        ]
         await interaction.response.defer(ephemeral=True)
         try:
+            # Omitted options preserve the existing policy. The old defaults made
+            # `/moderation-policy enabled:true` silently wipe the report channel
+            # and every other setting.
+            existing = None
+            reader = getattr(self.service, "policy", None)
+            if callable(reader):
+                existing = await reader(guild_id)
+            selected_categories = (
+                list(existing.categories)
+                if categories is None and existing is not None
+                else [
+                    item.strip().lower()
+                    for item in str(categories if categories is not None else ",".join(DEFAULT_CATEGORIES)).split(",")
+                    if item.strip()
+                ]
+            )
+            if clear_report_channel:
+                report_channel_id = None
+            elif report_channel is not None:
+                report_channel_id = report_channel.id
+            elif existing is not None:
+                report_channel_id = existing.report_channel_id
+            else:
+                report_channel_id = None
             effective = await self.service.update_policy(
                 guild_id=guild_id,
                 actor_id=str(interaction.user.id),
                 enabled=bool(enabled),
-                report_channel_id=(
-                    None if clear_report_channel else (
-                        None if report_channel is None else report_channel.id
+                report_channel_id=report_channel_id,
+                delete_enabled=(
+                    existing.delete_enabled
+                    if delete_enabled is None and existing is not None
+                    else bool(delete_enabled)
+                ),
+                severity_threshold=(
+                    severity.value
+                    if severity is not None
+                    else (
+                        existing.severity_threshold
+                        if existing is not None
+                        else self.settings.moderation_default_severity
                     )
                 ),
-                delete_enabled=bool(delete_enabled),
-                severity_threshold=(severity.value if severity else self.settings.moderation_default_severity),
-                confidence_threshold=float(confidence),
+                confidence_threshold=float(
+                    existing.confidence_threshold
+                    if confidence is None and existing is not None
+                    else (
+                        self.settings.moderation_default_confidence
+                        if confidence is None
+                        else confidence
+                    )
+                ),
                 categories=selected_categories,
-                max_incidents_per_day=int(max_per_day),
-                notify_user=bool(notify_user),
+                max_incidents_per_day=int(
+                    existing.max_incidents_per_day
+                    if max_per_day is None and existing is not None
+                    else (20 if max_per_day is None else max_per_day)
+                ),
+                notify_user=(
+                    existing.notify_user
+                    if notify_user is None and existing is not None
+                    else bool(notify_user)
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - typed errors are already user-safe
             await self.handle_error(interaction, exc, action="updating the moderation policy")
@@ -490,7 +547,7 @@ def _report_embed(report: IncidentReport) -> discord.Embed:
     }
     embed = discord.Embed(
         title=f"AI moderation incident #{report.incident_id}",
-        description="Model assessment for human review. No message text is stored in this embed.",
+        description="Model assessment for human review; review the linked message in Discord.",
         color=colors.get(report.severity, discord.Color.orange()),
     )
     embed.add_field(name="Category", value=report.category, inline=True)

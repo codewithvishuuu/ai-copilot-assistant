@@ -208,6 +208,27 @@ async def test_retries_do_not_repeat_delete_warning_or_report(tmp_path, tmp_db):
     assert await repo.count_moderation_warnings(guild_id="500", user_id="7") == 1
 
 
+async def test_daily_cap_also_pauses_user_warnings(tmp_path, tmp_db):
+    repo = Repository(tmp_db)
+    service = _service(
+        repo,
+        FakeProvider(responses=[_verdict(), _verdict()]),
+        tmp_path,
+    )
+    await _policy(repo, max_per_day=1, notify_user=True)
+
+    async def delete() -> None:
+        return None
+
+    first = await _evaluate(service, message_id="200", delete=delete)
+    second = await _evaluate(service, message_id="201", delete=delete)
+
+    assert first.warning_created is True
+    assert second.warning_created is False
+    assert second.action_taken == "flagged"
+    assert await repo.count_moderation_warnings(guild_id="500", user_id="7") == 1
+
+
 async def test_repeat_count_and_daily_action_limit(tmp_path, tmp_db):
     repo = Repository(tmp_db)
     service = _service(
@@ -222,6 +243,14 @@ async def test_repeat_count_and_daily_action_limit(tmp_path, tmp_db):
         deleted.append("yes")
 
     first = await _evaluate(service, message_id="100", delete=delete)
+    assert await repo.review_moderation_incident(
+        first.incident_id,
+        guild_id="500",
+        state="confirmed",
+        reviewer_id="9",
+        note=None,
+        updated_at="2026-10-22T12:01:00+00:00",
+    )
     second = await _evaluate(service, message_id="101", delete=delete)
     assert first.action_taken == "deleted"
     assert second.action_taken == "flagged"  # daily cap pauses automatic deletion
@@ -303,6 +332,7 @@ async def test_report_is_delivered_to_private_moderator_channel(tmp_path, tmp_db
         provider=provider,
         repo=repo,
         moderation_service=service,
+        user=SimpleNamespace(id=999),
         get_channel=lambda channel_id: report_channel if int(channel_id) == 900 else None,
     )
     cog = AutomodCog(bot)
@@ -316,6 +346,7 @@ async def test_report_is_delivered_to_private_moderator_channel(tmp_path, tmp_db
         author_id=7,
         guild_id=500,
         channel_id=2002,
+        mentions=(SimpleNamespace(id=999),),
     )
     message.delete = delete
     await cog._handle(message)

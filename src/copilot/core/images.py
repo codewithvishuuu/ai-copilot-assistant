@@ -16,7 +16,7 @@ import io
 import logging
 from dataclasses import dataclass, field
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from .collector import CollectedAttachment
 
@@ -82,6 +82,8 @@ def prepare_image_bytes(
         raise ValueError("corrupt or unsupported image") from exc
 
     with image:
+        # Apply the EXIF orientation to the pixels before the metadata is dropped.
+        image = ImageOps.exif_transpose(image)
         width, height = image.size
         if width <= 0 or height <= 0:
             raise ValueError("invalid image dimensions")
@@ -101,10 +103,15 @@ def prepare_image_bytes(
         sanitized = output.getvalue()
 
         if len(sanitized) > max_output_bytes:
-            output = io.BytesIO()
             rgb = image.convert("RGB") if image.mode != "RGB" else image
-            rgb.save(output, format="JPEG", quality=85)
-            sanitized = output.getvalue()
+            for quality in (85, 70, 55, 40, 30, 20):
+                output = io.BytesIO()
+                rgb.save(output, format="JPEG", quality=quality)
+                sanitized = output.getvalue()
+                if len(sanitized) <= max_output_bytes:
+                    break
+            else:
+                raise ValueError("image remains larger than the output limit after re-encoding")
             note = (note + "; " if note else "") + "converted to JPEG to bound size"
 
     return sanitized, note

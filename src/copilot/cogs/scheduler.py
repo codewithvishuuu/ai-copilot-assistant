@@ -39,6 +39,7 @@ _MODE_CHOICES = [
     app_commands.Choice(name="Draft preparation", value="draft_prep"),
     app_commands.Choice(name="Moderation review", value="moderation"),
     app_commands.Choice(name="Troubleshooting triage", value="triage"),
+    app_commands.Choice(name="Quality evaluation", value="evaluation"),
 ]
 _CONTENT_TYPES = [
     app_commands.Choice(name="Announcement", value="announcement"),
@@ -255,6 +256,11 @@ class SchedulerCog(CopilotCog):
                 if channel_id and interaction.guild is not None
                 else None
             )
+            if channel_id and not isinstance(channel, discord.TextChannel):
+                raise ScheduleError(
+                    "The calendar entry's target channel is unavailable or is not a text "
+                    "channel; update the entry before scheduling."
+                )
             chosen, target = await self._target(
                 interaction, channel if isinstance(channel, discord.TextChannel) else None
             )
@@ -299,7 +305,10 @@ class SchedulerCog(CopilotCog):
         except Exception as exc:  # noqa: BLE001
             await self.handle_error(interaction, exc, action="listing scheduled jobs")
 
-    @app_commands.command(name="schedule-cancel", description="Moderator: cancel a pending scheduled job")
+    @app_commands.command(
+        name="schedule-cancel",
+        description="Moderator: cancel a pending or running scheduled job (cooperative)",
+    )
     async def schedule_cancel(self, interaction: discord.Interaction, job_id: int) -> None:
         actor = await self._actor(interaction)
         if actor is None:

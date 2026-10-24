@@ -469,8 +469,28 @@ informal until a release tag exists.
   an unavailable zone produces a clear error.
 - Offline evaluation extended with role-roster, dependency-aware planning, provider-honesty,
   agent-run dependency/idempotency/isolation, and scheduler kind/idempotency/recovery checks.
-  `MIN_SCHEMA_VERSION` is 9.
+  `MIN_SCHEMA_VERSION` is now 10.
 - Docs: ARCHITECTURE invariants/module map/flows, CONFIGURATION sections, `.env.example`
   settings, TESTING suite map.
 - **Live E2E: NOT RUN.** No bot login, command sync, live Discord/provider call, real database
   migration or publication was performed. `CONTENT_PUBLISHING_ENABLED` remains `false`.
+
+### Specialist runtime closure — all eight roles executable (2026-10-24)
+- All eight specialist roles now map to at least one registered read-only skill. Added
+  `radar.community` (bounded evidence: top five problems/gaps, one evidence item each),
+  `moderation.assess` (classification only; no incident/action/audit),
+  `triage.analyze` (deterministic text/log triage with secret redaction),
+  `content.brief` (provider-backed draft suggestion grounded in approved knowledge; no Content
+  Studio draft, approval or publication), and `quality.checks` (the same offline checks as
+  `/evaluate`, with no persisted report). The host gained a sixth `evaluation` mode and its
+  existing moderation/triage/draft plans now call the specialist skills instead of only reading
+  knowledge. Provider/skill absence is reported honestly in `unavailable`.
+- Added migration 10, rebuilding `agent_runs`/`agent_run_steps` to admit the `evaluation` mode.
+  Existing runs, steps, ids and indexes survive; the child table is staged before the parent drop
+  so `ON DELETE CASCADE` cannot destroy rows. `MIN_SCHEMA_VERSION` is 10.
+- Tests: 753 passed, 2 skipped, JUnit `tests=755`; new coverage for every new specialist skill,
+  all six host modes executing end-to-end through the host, all eight roles backed by a
+  registered bot skill, and the v9→v10 data-preserving rebuild.
+- **Live E2E remains NOT RUN / BLOCKED.** Screenshot/PDF/DOCX vision is still exercised only in
+  the mention-chat path after a real capability check; host triage handles text/logs. No live
+  Discord, provider, moderation or publishing action was performed.

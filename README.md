@@ -54,8 +54,9 @@ ollama pull gemma4:e2b
    no Mention Everyone.
 3. **No privileged intents are required.** The bot uses only non-privileged message
    events (mention-triggered chat); the **Message Content intent stays off**, so Discord
-   only exposes a message's text when the bot is mentioned. Threads are read on demand
-   when someone runs `/summarize`.
+   only exposes a message's text when the bot is mentioned. AI moderation is therefore
+   **mention-only**: ordinary channel messages are not assessed. Threads are read on
+   demand when someone runs `/summarize`.
 4. For fast command sync while developing, set `TEST_GUILD_ID` in `.env`.
 
 ## Commands
@@ -107,7 +108,7 @@ stored provenance — it never publishes.
 | `/mission-view` | moderator | implemented | Show one mission's steps, trace and evidence references |
 | `/mission-cancel` | moderator | implemented | Request cooperative cancellation of a planned/running mission |
 | `/mission-control` | moderator | implemented | Mission status, provider availability and recent activity |
-| `/agent` | moderator | implemented | Plan and run a bounded dependency-aware set of read-only skills with live step progress |
+| `/agent` | moderator | implemented | Plan and run a bounded dependency-aware set of read-only skills across the eight specialist roles, with live step progress |
 | `/agent-runs` | moderator | implemented | List recent host-agent runs in this server |
 | `/agent-view` | moderator | implemented | Show one run's steps, dependencies, outputs, evidence and errors |
 | `/agent-cancel` | moderator | implemented | Cancel a planned/running host-agent run |
@@ -125,7 +126,7 @@ stored provenance — it never publishes.
 | `/knowledge-candidate-reject` | moderator | implemented | Reject one candidate; it stays stored for audit and is not searchable |
 | `/knowledge-purge` | moderator | implemented | Permanently delete one approved knowledge document by `doc N` id (guild-scoped, audited, FTS-safe) |
 | `/debug` | configured devs | implemented | Explain an error or stack trace (never executes anything) |
-| `/forget` | moderator | implemented | Delete all stored data for a thread |
+| `/forget` | moderator | implemented | Delete a thread's stored content and records (audit/workflow history retained) |
 | `/conversation-status` | everyone | implemented | Show counts/timestamps of your own stored chat memory (never message text) |
 | `/clear-conversation` | everyone | implemented | Delete your own stored @mention chat history in a channel (defaults to the current one) |
 | `/content-create` | moderator | implemented | Generate a bounded draft for an explicit target channel; no posting |

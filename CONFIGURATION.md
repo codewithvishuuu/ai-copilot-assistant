@@ -163,12 +163,19 @@ metadata is stored (not the whole file).
 | Variable | Default | Meaning |
 |---|---|---|
 | `MODERATION_ENABLED` | `false` | Master switch. Each guild still needs an enabled policy row. |
-| `MODERATION_REPORT_CHANNEL_ID` | unset | Private moderator channel for incident reports. |
 | `MODERATION_REPEAT_WINDOW_DAYS` | `7` | Window used to count confirmed repeat incidents. |
 | `MODERATION_TIMEOUT_S` | `30` | Timeout for one classification call. |
 | `MODERATION_MAX_TOKENS` | `300` | Token cap for classification output. |
-| `MODERATION_DEFAULT_CONFIDENCE` | `0.75` | Default confidence threshold when a policy does not set one. |
+| `MODERATION_DEFAULT_CONFIDENCE` | `0.75` | Default for `/moderation-policy` when its `confidence` option is omitted (0-1). |
 | `MODERATION_DEFAULT_SEVERITY` | `high` | Default minimum severity for automatic action. |
+
+The report channel is configured per guild with `/moderation-policy`; there is no global channel
+setting.
+
+**Scope: mentions only.** The privileged Message Content intent stays off, so Discord delivers
+message text only when the bot is mentioned. The listener enforces that scope explicitly: it
+assesses only messages that mention the bot, and ordinary channel messages are not moderated.
+Enabling the privileged intent is a separate deployment decision and is not supported here.
 
 Classification evaluates context, not isolated keywords. Ambiguous or low-confidence cases are
 flagged for human review. Deletion happens only when the per-guild policy enables it and the bot
@@ -239,8 +246,7 @@ post (recovery scans the latest 100 messages for the deterministic nonce). See
 | `DATA_DIR` | `data` | Local data directory (gitignored). Relative to project root; portable. |
 | `DB_FILENAME` | `copilot.db` | SQLite filename inside `DATA_DIR`. |
 | `RETENTION_DAYS` | `90` | Stored messages/summaries older than this are swept. |
-| `LOG_LEVEL` | `INFO` | Standard logging level for local logs. |
-| `DEBUG_LOG_CONTENT` | `false` | If true, logs excerpts of message content — privacy risk, local debugging only. |
+| `LOG_LEVEL` | `INFO` | Standard logging level for local logs. Message bodies are never logged. |
 | `EPHEMERAL_BY_DEFAULT` | `true` | Controls **`/summarize` replies only**: `true` = requester-only, `false` = channel-visible (for presentations). All other commands are always private regardless. Hiding the reply does not make source data private from the bot — see SECURITY.md. |
 
 ## Insights

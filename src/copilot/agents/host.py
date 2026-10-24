@@ -21,7 +21,7 @@ import asyncio
 import contextlib
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -71,6 +71,7 @@ class HostMode(str, Enum):
     draft_prep = "draft_prep"
     moderation = "moderation"
     triage = "triage"
+    evaluation = "evaluation"
 
 
 class AgentRunStatus(str, Enum):
@@ -181,6 +182,10 @@ _KEYWORDS: tuple[tuple[HostMode, tuple[str, ...]], ...] = (
         HostMode.triage,
         ("screenshot", "image", "traceback", "stack trace", "log", "error", "debug", "broken"),
     ),
+    (
+        HostMode.evaluation,
+        ("evaluate", "evaluation", "quality check", "self-test", "regression", "offline checks"),
+    ),
 )
 
 
@@ -205,6 +210,7 @@ class HostPlanner:
         registered_skill_ids: set[str] | frozenset[str],
         *,
         mode: HostMode | None = None,
+        has_images: bool = False,
     ) -> HostPlan:
         goal = truncate(strip_control_tokens(goal or "").strip(), MAX_GOAL_CHARS)
         limit = max(1, min(int(self._settings.agent_max_steps), MAX_PLAN_STEPS))
@@ -237,6 +243,13 @@ class HostPlanner:
         if chosen_mode is HostMode.community:
             add(RoleId.community_analytics, "Community pulse snapshot", "pulse.community")
             add(RoleId.community_analytics, "Aggregate community insights", "insights.community")
+            if not add(
+                RoleId.community_analytics, "Recurring-problem radar", "radar.community"
+            ):
+                unavailable.append(
+                    "Problem Radar is unavailable in this deployment; the plan uses pulse, "
+                    "insights and approved knowledge."
+                )
             add(
                 RoleId.knowledge_memory,
                 "Search approved knowledge",
@@ -268,6 +281,20 @@ class HostPlanner:
                 {"query": goal[:200], "limit": 3},
             )
             add(RoleId.community_analytics, "Community pulse snapshot", "pulse.community")
+            if not add(
+                RoleId.content_writer,
+                "Draft content suggestion",
+                "content.brief",
+                {
+                    "topic": goal[:500],
+                    "content_type": "announcement",
+                    "length": "medium",
+                },
+            ):
+                unavailable.append(
+                    "Content Writer is unavailable because no generation provider is "
+                    "configured; the plan cannot produce a draft suggestion."
+                )
             if add(
                 RoleId.web_researcher,
                 "Optional source check",
@@ -276,27 +303,73 @@ class HostPlanner:
             ):
                 pass
             unavailable.append(
-                "Content Writer produces a grounded brief only; public drafts and publishing "
-                "remain human-approved in Content Studio."
+                "Content Writer produces a draft suggestion only; saving, versioning, "
+                "approval and publishing remain human-gated in Content Studio."
             )
         elif chosen_mode is HostMode.moderation:
-            add(RoleId.knowledge_memory, "Review knowledge candidates", "knowledge.candidates", {"limit": 5})
+            if not add(
+                RoleId.ai_moderation,
+                "Assess reported text (read-only)",
+                "moderation.assess",
+                {"content": goal[:4000]},
+            ):
+                unavailable.append(
+                    "The AI Moderation specialist is unavailable; the host will not guess "
+                    "at a classification without the configured moderation service."
+                )
+            add(
+                RoleId.knowledge_memory,
+                "Review knowledge candidates",
+                "knowledge.candidates",
+                {"limit": 5},
+            )
             add(RoleId.community_analytics, "Aggregate community insights", "insights.community")
             unavailable.append(
-                "AI Moderation actions require human review; the host never deletes, warns, "
-                "times out or bans."
+                "The host assessment is read-only and classification-only. Deletion, warnings, "
+                "incidents and human review belong to the dedicated moderation workflow."
             )
-        else:  # triage
+        elif chosen_mode is HostMode.triage:
             add(
                 RoleId.knowledge_memory,
                 "Search approved knowledge",
                 "kb.search",
                 {"query": goal[:200], "limit": 3},
             )
-            unavailable.append(
-                "Screenshot and log interpretation happens in the mention-chat multimodal path; "
-                "this host plan uses approved knowledge only."
-            )
+            if has_images:
+                if not add(
+                    RoleId.vision_troubleshooting,
+                    "Analyze screenshot evidence",
+                    "vision.analyze",
+                    {"goal": goal[:500]},
+                ):
+                    unavailable.append(
+                        "Image analysis is unavailable because no vision-capable provider is "
+                        "registered; this plan uses text/log triage only."
+                    )
+            if not add(
+                RoleId.vision_troubleshooting,
+                "Analyze error evidence",
+                "triage.analyze",
+                {"content": goal[:12000]},
+            ):
+                unavailable.append(
+                    "Text/log triage is unavailable in this deployment."
+                )
+            if not has_images:
+                unavailable.append(
+                    "No screenshot was supplied; the host performs text/log triage only. "
+                    "PDF/DOCX uploads remain bounded text extraction in mention-chat."
+                )
+        else:  # evaluation
+            if not add(
+                RoleId.quality_evaluation,
+                "Run offline quality checks",
+                "quality.checks",
+            ):
+                unavailable.append(
+                    "Quality and Evaluation is unavailable until the offline evaluation "
+                    "service is wired into this deployment."
+                )
 
         if not sources:
             raise AgentPlanError()
@@ -321,9 +394,13 @@ class HostPlanner:
                     depends_on=tuple(task.index for task in sources),
                 )
             )
-        elif not any(task.role_id is RoleId.community_manager for task in tasks):
+        elif "synthesis.brief" not in available:
             unavailable.append(
                 "Result combination is unavailable because synthesis.brief is not registered."
+            )
+        elif not truncated:
+            unavailable.append(
+                "Result combination was omitted to keep the plan within the 1-step budget."
             )
         if truncated:
             unavailable.append(
@@ -360,6 +437,9 @@ class AgentRunService:
         self._clock = clock
         self._tasks: dict[int, asyncio.Task] = {}
         self._cancel_events: dict[int, asyncio.Event] = {}
+        # Image bytes stay in this in-memory map only; they are never written to
+        # plan_json, input_json, step output or the database.
+        self._images: dict[int, tuple[bytes, ...]] = {}
 
     # ---------------------------------------------------------------- creation
 
@@ -369,6 +449,7 @@ class AgentRunService:
         *,
         goal: str,
         mode: HostMode | None = None,
+        has_images: bool = False,
         idempotency_key: str | None = None,
     ) -> AgentRunView:
         if SkillPermission.moderator not in context.permissions:
@@ -387,7 +468,12 @@ class AgentRunService:
             )
             if existing is not None:
                 return await self.get(guild_id=str(context.guild_id), run_id=int(existing["id"]))
-        plan = self._planner.plan(clean_goal, self._orchestrator.registry.ids, mode=mode)
+        plan = self._planner.plan(
+            clean_goal,
+            self._orchestrator.registry.ids,
+            mode=mode,
+            has_images=has_images,
+        )
         self._validate_plan(plan)
         now = _iso(self._clock())
         trace_id = f"agent-{context.guild_id}-{now}"
@@ -414,18 +500,12 @@ class AgentRunService:
             created_at=now,
             plan_json=plan.model_dump_json(),
             steps=steps,
-        )
-        await self._repo.audit(
-            actor_id=str(context.user_id),
-            action="agent.created",
-            target_type="agent_run",
-            target_id=str(run_id),
-            guild_id=str(context.guild_id),
-            meta={
+            audit_meta={
                 "guild_id": str(context.guild_id),
                 "mode": plan.mode.value,
                 "steps": len(plan.tasks),
                 "unavailable": len(plan.unavailable),
+                "image_inputs": has_images,
             },
         )
         return await self.get(guild_id=str(context.guild_id), run_id=run_id)
@@ -437,6 +517,7 @@ class AgentRunService:
         context: SkillContext,
         run_id: int,
         *,
+        images: Sequence[bytes] = (),
         on_update: Callable[[AgentRunView], Awaitable[None]] | None = None,
     ) -> AgentRunView:
         if SkillPermission.moderator not in context.permissions:
@@ -461,10 +542,16 @@ class AgentRunService:
         )
         cancel_event = asyncio.Event()
         self._cancel_events[run_id] = cancel_event
-        task = asyncio.create_task(
-            self._run(context, run_id, cancel_event, on_update),
-            name=f"copilot-agent-run-{run_id}",
-        )
+        if images:
+            self._images[run_id] = tuple(images)
+        try:
+            task = asyncio.create_task(
+                self._run(context, run_id, cancel_event, on_update),
+                name=f"copilot-agent-run-{run_id}",
+            )
+        except Exception:
+            self._images.pop(run_id, None)
+            raise
         self._tasks[run_id] = task
         return await self.get(guild_id=str(context.guild_id), run_id=run_id)
 
@@ -486,6 +573,7 @@ class AgentRunService:
         finally:
             self._tasks.pop(run_id, None)
             self._cancel_events.pop(run_id, None)
+            self._images.pop(run_id, None)
 
     async def _execute(
         self,
@@ -556,6 +644,8 @@ class AgentRunService:
                             f"step {dependency}": outputs.get(dependency, {})
                             for dependency in depends
                         }
+                    if str(row["skill_id"]) == "vision.analyze":
+                        payload["images"] = list(self._images.get(run_id, ()))
                     result = await self._orchestrator.run(
                         TaskRequest(skill_id=str(row["skill_id"]), input=payload), context
                     )
